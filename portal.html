@@ -1,0 +1,589 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Client Portal — Third Act Advisors</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --black:     #0a0a0a;
+    --white:     #f8f6f1;
+    --gold:      #c9a227;
+    --red:       #cc3344;
+    --teal:      #11536b;
+    --surface:   #141414;
+    --border:    rgba(255,255,255,0.08);
+    --muted:     rgba(255,255,255,0.35);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--black);
+    color: var(--white);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 40px 24px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Subtle grid background matching hub */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Gold ambient glow */
+  body::after {
+    content: '';
+    position: fixed;
+    top: -300px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 700px;
+    height: 600px;
+    background: radial-gradient(ellipse, rgba(201,162,39,0.06) 0%, transparent 70%);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .portal-wrap {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 420px;
+  }
+
+  /* Brand mark */
+  .brand {
+    text-align: center;
+    margin-bottom: 48px;
+  }
+  .brand-eyebrow {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    color: var(--gold);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    margin-bottom: 16px;
+  }
+  .brand-eyebrow::before,
+  .brand-eyebrow::after {
+    content: '';
+    width: 30px;
+    height: 1px;
+    background: var(--gold);
+    opacity: 0.5;
+  }
+  .brand-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: clamp(2.2rem, 6vw, 3.2rem);
+    letter-spacing: 2px;
+    line-height: 1;
+    color: var(--white);
+    margin-bottom: 6px;
+  }
+  .brand-sub {
+    font-family: 'DM Serif Display', serif;
+    font-style: italic;
+    font-size: 0.92rem;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+
+  /* Card */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 40px 36px;
+  }
+
+  .card-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: 1.35rem;
+    font-weight: 400;
+    color: var(--white);
+    margin-bottom: 6px;
+  }
+  .card-desc {
+    font-size: 0.82rem;
+    color: var(--muted);
+    line-height: 1.6;
+    margin-bottom: 32px;
+  }
+
+  /* Form */
+  .form-group {
+    margin-bottom: 20px;
+  }
+  label {
+    display: block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 8px;
+  }
+  input[type="email"],
+  input[type="password"] {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.95rem;
+    padding: 13px 16px;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  input[type="email"]:focus,
+  input[type="password"]:focus {
+    border-color: rgba(201,162,39,0.5);
+  }
+  input::placeholder {
+    color: rgba(255,255,255,0.2);
+  }
+
+  /* Toggle password */
+  .pw-wrap {
+    position: relative;
+  }
+  .pw-toggle {
+    position: absolute;
+    right: 14px;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.75rem;
+    font-family: 'DM Sans', sans-serif;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    padding: 0;
+  }
+  .pw-toggle:hover { color: var(--white); }
+
+  /* Submit button */
+  .btn-primary {
+    width: 100%;
+    background: var(--gold);
+    color: var(--black);
+    border: none;
+    border-radius: 3px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    padding: 15px 24px;
+    cursor: pointer;
+    margin-top: 8px;
+    transition: opacity 0.2s, transform 0.15s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+  }
+  .btn-primary:hover:not(:disabled) { opacity: 0.88; }
+  .btn-primary:active:not(:disabled) { transform: scale(0.985); }
+  .btn-primary:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  /* Spinner */
+  .spinner {
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(0,0,0,0.3);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+  .btn-primary.loading .spinner { display: block; }
+  .btn-primary.loading .btn-text { opacity: 0.7; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Forgot password link */
+  .forgot-link {
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-decoration: none;
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+  .forgot-link:hover { color: var(--white); }
+
+  /* Error / success message */
+  .message {
+    border-radius: 3px;
+    padding: 12px 16px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+    margin-bottom: 20px;
+    display: none;
+  }
+  .message.error {
+    background: rgba(204,51,68,0.12);
+    border: 1px solid rgba(204,51,68,0.3);
+    color: #f08090;
+  }
+  .message.success {
+    background: rgba(46,125,50,0.12);
+    border: 1px solid rgba(46,125,50,0.3);
+    color: #81c784;
+  }
+  .message.visible { display: block; }
+
+  /* Divider for reset mode */
+  .back-link {
+    display: block;
+    text-align: center;
+    margin-top: 20px;
+    font-size: 0.78rem;
+    color: var(--muted);
+    cursor: pointer;
+    transition: color 0.2s;
+  }
+  .back-link:hover { color: var(--white); }
+
+  /* Footer */
+  .portal-footer {
+    text-align: center;
+    margin-top: 32px;
+    font-size: 0.68rem;
+    color: rgba(255,255,255,0.12);
+    letter-spacing: 1px;
+    position: relative;
+    z-index: 1;
+  }
+  .portal-footer a {
+    color: rgba(255,255,255,0.2);
+    text-decoration: none;
+  }
+  .portal-footer a:hover { color: var(--muted); }
+
+  @media (max-width: 480px) {
+    .card { padding: 32px 24px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="portal-wrap">
+
+  <div class="brand">
+    <div class="brand-eyebrow">Client Portal</div>
+    <div class="brand-title">Third Act Advisors</div>
+    <div class="brand-sub">Your career tools, in one place</div>
+  </div>
+
+  <!-- LOGIN VIEW -->
+  <div id="view-login" class="card">
+    <div class="card-title">Sign in to your account</div>
+    <div class="card-desc">Access your personalized coaching tools and resources.</div>
+
+    <div id="msg-login" class="message error"></div>
+
+    <div class="form-group">
+      <label for="email-login">Email address</label>
+      <input type="email" id="email-login" placeholder="you@example.com" autocomplete="email">
+    </div>
+    <div class="form-group">
+      <label for="pw-login">Password</label>
+      <div class="pw-wrap">
+        <input type="password" id="pw-login" placeholder="••••••••" autocomplete="current-password">
+        <button class="pw-toggle" type="button" onclick="togglePw('pw-login', this)">Show</button>
+      </div>
+    </div>
+
+    <button class="btn-primary" id="btn-login" onclick="handleLogin()">
+      <span class="btn-text">Sign in</span>
+      <div class="spinner"></div>
+    </button>
+
+    <span class="forgot-link" onclick="showView('reset')">Forgot your password?</span>
+  </div>
+
+  <!-- RESET VIEW -->
+  <div id="view-reset" class="card" style="display:none;">
+    <div class="card-title">Reset your password</div>
+    <div class="card-desc">Enter your email and we'll send you a reset link.</div>
+
+    <div id="msg-reset" class="message error"></div>
+
+    <div class="form-group">
+      <label for="email-reset">Email address</label>
+      <input type="email" id="email-reset" placeholder="you@example.com" autocomplete="email">
+    </div>
+
+    <button class="btn-primary" id="btn-reset" onclick="handleReset()">
+      <span class="btn-text">Send reset link</span>
+      <div class="spinner"></div>
+    </button>
+
+    <span class="back-link" onclick="showView('login')">← Back to sign in</span>
+  </div>
+
+  <!-- PORTAL DASHBOARD (shown after login) -->
+  <div id="view-portal" class="card" style="display:none;">
+    <div class="card-title">Welcome back<span id="user-name"></span></div>
+    <div class="card-desc">Choose a tool to get started.</div>
+
+    <div style="display:flex; flex-direction:column; gap:12px; margin-top:8px;">
+
+      <a href="/interview-prep.html" style="
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid var(--border);
+        border-radius: 3px;
+        padding: 18px 20px;
+        text-decoration: none;
+        color: var(--white);
+        transition: border-color 0.2s, background 0.2s;
+      " onmouseover="this.style.borderColor='rgba(201,162,39,0.4)'; this.style.background='rgba(255,255,255,0.07)'"
+         onmouseout="this.style.borderColor='rgba(255,255,255,0.08)'; this.style.background='rgba(255,255,255,0.04)'">
+        <div style="flex-shrink:0; width:36px; height:36px; border:1px solid rgba(201,162,39,0.4); border-radius:3px; display:flex; align-items:center; justify-content:center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#c9a227" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <div>
+          <div style="font-size:0.88rem; font-weight:700; margin-bottom:3px;">Interview Prep</div>
+          <div style="font-size:0.75rem; color:var(--muted); line-height:1.4;">Paste a job description, get tailored questions and coaching feedback.</div>
+        </div>
+        <div style="margin-left:auto; color:var(--muted); font-size:0.7rem; letter-spacing:1px;">→</div>
+      </a>
+
+      <!-- Placeholder for future tools -->
+      <div style="
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        background: rgba(255,255,255,0.02);
+        border: 1px solid rgba(255,255,255,0.04);
+        border-radius: 3px;
+        padding: 18px 20px;
+        opacity: 0.4;
+        cursor: not-allowed;
+      ">
+        <div style="flex-shrink:0; width:36px; height:36px; border:1px solid rgba(255,255,255,0.1); border-radius:3px; display:flex; align-items:center; justify-content:center;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/>
+          </svg>
+        </div>
+        <div>
+          <div style="font-size:0.88rem; font-weight:700; margin-bottom:3px;">LinkedIn Optimizer <span style="font-size:0.65rem; letter-spacing:2px; text-transform:uppercase; color:var(--muted); font-weight:400; margin-left:8px;">Coming soon</span></div>
+          <div style="font-size:0.75rem; color:var(--muted); line-height:1.4;">Score and strengthen your LinkedIn profile for your target role.</div>
+        </div>
+      </div>
+
+    </div>
+
+    <button onclick="handleSignOut()" style="
+      margin-top: 28px;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      color: var(--muted);
+      font-family: 'DM Sans', sans-serif;
+      font-size: 0.7rem;
+      font-weight: 700;
+      letter-spacing: 2px;
+      text-transform: uppercase;
+      padding: 10px 20px;
+      cursor: pointer;
+      transition: color 0.2s, border-color 0.2s;
+      width: 100%;
+    "
+    onmouseover="this.style.color='var(--white)'; this.style.borderColor='rgba(255,255,255,0.2)'"
+    onmouseout="this.style.color='var(--muted)'; this.style.borderColor='var(--border)'">
+      Sign out
+    </button>
+  </div>
+
+</div>
+
+<div class="portal-footer">
+  <a href="/">← Back to hub.thirdactadvisors.com</a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
+  © 2026 Third Act Advisors, LLC
+</div>
+
+<script>
+  // ── CONFIGURATION ──────────────────────────────────────────────────────────
+  // Replace these with your actual Supabase project values from supabase.com
+  const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+  const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+  const { createClient } = supabase;
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // ── VIEW MANAGEMENT ────────────────────────────────────────────────────────
+  function showView(name) {
+    ['login','reset','portal'].forEach(v => {
+      document.getElementById(`view-${v}`).style.display = 'none';
+    });
+    document.getElementById(`view-${name}`).style.display = 'block';
+    clearMessages();
+  }
+
+  function clearMessages() {
+    document.querySelectorAll('.message').forEach(el => {
+      el.classList.remove('visible');
+      el.textContent = '';
+    });
+  }
+
+  function showMessage(id, text, type = 'error') {
+    const el = document.getElementById(id);
+    el.textContent = text;
+    el.className = `message ${type} visible`;
+  }
+
+  function setLoading(btn, loading) {
+    btn.classList.toggle('loading', loading);
+    btn.disabled = loading;
+  }
+
+  // ── PASSWORD TOGGLE ────────────────────────────────────────────────────────
+  function togglePw(inputId, btn) {
+    const input = document.getElementById(inputId);
+    const isHidden = input.type === 'password';
+    input.type = isHidden ? 'text' : 'password';
+    btn.textContent = isHidden ? 'Hide' : 'Show';
+  }
+
+  // ── AUTH HANDLERS ──────────────────────────────────────────────────────────
+  async function handleLogin() {
+    const email = document.getElementById('email-login').value.trim();
+    const password = document.getElementById('pw-login').value;
+    const btn = document.getElementById('btn-login');
+
+    clearMessages();
+
+    if (!email || !password) {
+      showMessage('msg-login', 'Please enter your email and password.');
+      return;
+    }
+
+    setLoading(btn, true);
+
+    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+
+    setLoading(btn, false);
+
+    if (error) {
+      const friendly = error.message.includes('Invalid login')
+        ? 'That email or password isn\'t right. Please try again.'
+        : error.message;
+      showMessage('msg-login', friendly);
+      return;
+    }
+
+    showPortal(data.user);
+  }
+
+  async function handleReset() {
+    const email = document.getElementById('email-reset').value.trim();
+    const btn = document.getElementById('btn-reset');
+
+    clearMessages();
+
+    if (!email) {
+      showMessage('msg-reset', 'Please enter your email address.');
+      return;
+    }
+
+    setLoading(btn, true);
+
+    const { error } = await sb.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/portal.html`
+    });
+
+    setLoading(btn, false);
+
+    if (error) {
+      showMessage('msg-reset', error.message);
+      return;
+    }
+
+    showMessage('msg-reset', 'Check your inbox — a reset link is on its way.', 'success');
+  }
+
+  async function handleSignOut() {
+    await sb.auth.signOut();
+    showView('login');
+  }
+
+  // ── PORTAL DISPLAY ─────────────────────────────────────────────────────────
+  function showPortal(user) {
+    const nameEl = document.getElementById('user-name');
+    const email = user?.email || '';
+    const displayName = user?.user_metadata?.full_name || email.split('@')[0] || '';
+    nameEl.textContent = displayName ? `, ${displayName}` : '';
+    showView('portal');
+  }
+
+  // ── SESSION CHECK ON LOAD ──────────────────────────────────────────────────
+  async function init() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (session?.user) {
+      showPortal(session.user);
+    } else {
+      showView('login');
+    }
+  }
+
+  // Handle password recovery redirect (Supabase sends token in URL hash)
+  sb.auth.onAuthStateChange((event, session) => {
+    if (event === 'PASSWORD_RECOVERY') {
+      showView('reset');
+      showMessage('msg-reset', 'You can now set a new password — use the form below.', 'success');
+    }
+    if (event === 'SIGNED_IN' && session) {
+      showPortal(session.user);
+    }
+  });
+
+  // Enter key on inputs
+  document.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    const activeView = document.getElementById('view-login').style.display !== 'none' ? 'login' : 'reset';
+    if (activeView === 'login') handleLogin();
+    else handleReset();
+  });
+
+  init();
+</script>
+</body>
+</html>
