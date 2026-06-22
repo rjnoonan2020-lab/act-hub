@@ -1,0 +1,3 @@
+[functions]
+  [functions.interview-video]
+    timeout = 26
