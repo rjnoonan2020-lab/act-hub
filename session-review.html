@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Session Review — First Act Advising</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  :root {
+    --black:    #0a0a0a;
+    --white:    #f8f6f1;
+    --red:      #cc3344;
+    --gold:     #c9a227;
+    --teal:     #11536b;
+    --surface:  #141414;
+    --surface2: #1c1c1c;
+    --border:   rgba(255,255,255,0.08);
+    --muted:    rgba(255,255,255,0.35);
+    --muted2:   rgba(255,255,255,0.55);
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--black);
+    color: var(--white);
+    min-height: 100vh;
+  }
+
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(255,255,255,0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.02) 1px, transparent 1px);
+    background-size: 60px 60px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ── HEADER ── */
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    background: #fff;
+    border-bottom: 1px solid rgba(0,0,0,0.1);
+    padding: 0 40px;
+    height: 60px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .header-title {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 1.1rem;
+    letter-spacing: 3px;
+    color: #222;
+  }
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .btn-sm {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #555;
+    background: none;
+    border: 1px solid rgba(0,0,0,0.15);
+    border-radius: 2px;
+    padding: 7px 14px;
+    cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    text-decoration: none;
+    display: inline-block;
+    transition: color 0.2s, border-color 0.2s;
+  }
+  .btn-sm:hover { color: #000; border-color: rgba(0,0,0,0.35); }
+
+  /* ── MAIN ── */
+  main {
+    position: relative;
+    z-index: 1;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 48px 24px 80px;
+  }
+
+  /* ── PAGE HEADER ── */
+  .page-eyebrow {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 4px;
+    text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 12px;
+  }
+  .page-title {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(1.6rem, 4vw, 2.2rem);
+    font-weight: 400;
+    color: var(--white);
+    margin-bottom: 6px;
+  }
+  .page-desc {
+    font-size: 0.85rem;
+    color: var(--muted2);
+    margin-bottom: 40px;
+  }
+
+  /* ── FILTERS ── */
+  .filters {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .filter-label {
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+  select.filter-select {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem;
+    padding: 8px 12px;
+    outline: none;
+    cursor: pointer;
+  }
+  .sessions-count {
+    font-size: 0.75rem;
+    color: var(--muted);
+    margin-left: auto;
+  }
+
+  /* ── SESSION CARDS ── */
+  .session-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    margin-bottom: 16px;
+    overflow: hidden;
+    transition: border-color 0.2s;
+  }
+  .session-card.has-notes { border-color: rgba(201,162,39,0.25); }
+  .session-card.new-session { border-color: rgba(204,51,68,0.3); }
+
+  .session-header {
+    padding: 18px 24px;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    cursor: pointer;
+  }
+  .session-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--teal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+    text-transform: uppercase;
+  }
+  .session-meta { flex: 1; min-width: 0; }
+  .session-email {
+    font-size: 0.88rem;
+    font-weight: 700;
+    color: var(--white);
+    margin-bottom: 4px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .session-date {
+    font-size: 0.72rem;
+    color: var(--muted);
+    letter-spacing: 0.5px;
+  }
+  .session-badges {
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+    align-items: center;
+  }
+  .badge {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    padding: 4px 10px;
+    border-radius: 2px;
+  }
+  .badge-new { background: rgba(204,51,68,0.15); color: var(--red); border: 1px solid rgba(204,51,68,0.3); }
+  .badge-reviewed { background: rgba(201,162,39,0.1); color: var(--gold); border: 1px solid rgba(201,162,39,0.25); }
+  .badge-recordings { background: rgba(255,255,255,0.05); color: var(--muted2); border: 1px solid var(--border); }
+  .session-chevron {
+    color: var(--muted);
+    transition: transform 0.2s;
+    flex-shrink: 0;
+  }
+  .session-card.open .session-chevron { transform: rotate(180deg); }
+
+  /* ── SESSION BODY ── */
+  .session-body {
+    display: none;
+    border-top: 1px solid var(--border);
+  }
+  .session-card.open .session-body { display: block; }
+
+  .session-section {
+    padding: 20px 24px;
+    border-bottom: 1px solid var(--border);
+  }
+  .session-section:last-child { border-bottom: none; }
+  .section-label {
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+
+  /* JD preview */
+  .jd-preview {
+    font-size: 0.82rem;
+    color: var(--muted2);
+    line-height: 1.65;
+    max-height: 80px;
+    overflow: hidden;
+    position: relative;
+  }
+  .jd-preview.expanded { max-height: none; }
+  .jd-toggle {
+    font-size: 0.68rem;
+    color: var(--red);
+    cursor: pointer;
+    margin-top: 6px;
+    display: inline-block;
+    font-weight: 700;
+    letter-spacing: 1px;
+  }
+
+  /* Recording entries */
+  .recording-entry {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 16px 18px;
+    margin-bottom: 10px;
+  }
+  .recording-entry:last-child { margin-bottom: 0; }
+  .rec-q-type {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--red);
+    margin-bottom: 6px;
+  }
+  .rec-q-text {
+    font-family: 'DM Serif Display', serif;
+    font-size: 0.95rem;
+    color: var(--white);
+    margin-bottom: 12px;
+    line-height: 1.4;
+  }
+  .rec-transcript {
+    font-size: 0.78rem;
+    color: var(--muted2);
+    line-height: 1.65;
+    font-style: italic;
+    background: rgba(255,255,255,0.03);
+    border-radius: 2px;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+  }
+  .rec-ai-feedback {
+    font-size: 0.8rem;
+    color: var(--muted2);
+    line-height: 1.7;
+    padding: 10px 14px;
+    background: rgba(201,162,39,0.05);
+    border: 1px solid rgba(201,162,39,0.12);
+    border-radius: 2px;
+    margin-bottom: 10px;
+  }
+  .rec-label {
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--muted);
+    margin-bottom: 5px;
+  }
+
+  /* Coach notes */
+  .coach-notes-wrap { }
+  .notes-textarea {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--white);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.85rem;
+    line-height: 1.7;
+    padding: 14px 16px;
+    resize: vertical;
+    min-height: 100px;
+    outline: none;
+    transition: border-color 0.2s;
+    margin-bottom: 12px;
+  }
+  .notes-textarea:focus { border-color: rgba(201,162,39,0.4); }
+  .notes-textarea::placeholder { color: rgba(255,255,255,0.18); }
+
+  .btn-save-notes {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--gold);
+    color: var(--black);
+    border: none;
+    border-radius: 3px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 11px 22px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+  }
+  .btn-save-notes:hover:not(:disabled) { opacity: 0.85; }
+  .btn-save-notes:disabled { opacity: 0.4; cursor: not-allowed; }
+  .save-confirm {
+    font-size: 0.72rem;
+    color: #4caf50;
+    margin-left: 12px;
+    display: none;
+  }
+  .save-confirm.visible { display: inline; }
+
+  /* Spinner */
+  .spinner-sm {
+    width: 11px;
+    height: 11px;
+    border: 1.5px solid rgba(0,0,0,0.2);
+    border-top-color: #000;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    display: none;
+  }
+  .loading .spinner-sm { display: block; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Empty state */
+  .empty-state {
+    text-align: center;
+    padding: 80px 40px;
+    color: var(--muted);
+  }
+  .empty-state svg { margin-bottom: 16px; opacity: 0.2; }
+  .empty-state p { font-size: 0.88rem; line-height: 1.6; }
+
+  /* Loading */
+  .loading-state {
+    text-align: center;
+    padding: 60px;
+    color: var(--muted);
+    font-size: 0.82rem;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  @media (max-width: 600px) {
+    .header { padding: 0 20px; }
+    main { padding: 32px 16px 60px; }
+    .session-badges { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-title">Session Review — Coach View</div>
+  <div class="header-right">
+    <a class="btn-sm" href="/portal.html">← Portal</a>
+    <button class="btn-sm" onclick="handleSignOut()">Sign out</button>
+  </div>
+</header>
+
+<main>
+  <div class="page-eyebrow">First Act Advising</div>
+  <h1 class="page-title">Client Sessions</h1>
+  <p class="page-desc">Review recorded practice sessions, read AI feedback, and add your own coaching notes.</p>
+
+  <div class="filters">
+    <span class="filter-label">Filter</span>
+    <select class="filter-select" id="filter-status" onchange="applyFilter()">
+      <option value="all">All sessions</option>
+      <option value="new">Needs review</option>
+      <option value="reviewed">Reviewed</option>
+    </select>
+    <select class="filter-select" id="filter-client" onchange="applyFilter()">
+      <option value="all">All clients</option>
+    </select>
+    <span class="sessions-count" id="sessions-count"></span>
+  </div>
+
+  <div id="sessions-list">
+    <div class="loading-state">Loading sessions…</div>
+  </div>
+</main>
+
+<script>
+  // ── CONFIGURATION ──────────────────────────────────────────────────────────
+  const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+  const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
+
+  // Rob's email — only this user can access this page
+  const ADMIN_EMAIL = 'rob@thirdactadvisors.com';
+
+  const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  let allSessions = [];
+
+  // ── AUTH GUARD ─────────────────────────────────────────────────────────────
+  async function init() {
+    const { data: { session } } = await sb.auth.getSession();
+    if (!session) { window.location.href = '/portal.html'; return; }
+    if (session.user.email !== ADMIN_EMAIL) {
+      window.location.href = '/portal.html';
+      return;
+    }
+    loadSessions();
+  }
+
+  async function handleSignOut() {
+    try { await sb.auth.signOut(); } catch (e) {}
+    window.location.href = '/portal.html';
+  }
+
+  // ── LOAD SESSIONS ──────────────────────────────────────────────────────────
+  async function loadSessions() {
+    const { data, error } = await sb
+      .from('interview_sessions')
+      .select('*')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      document.getElementById('sessions-list').innerHTML =
+        `<div class="empty-state"><p>Error loading sessions: ${error.message}</p></div>`;
+      return;
+    }
+
+    allSessions = data || [];
+    populateClientFilter();
+    renderSessions(allSessions);
+  }
+
+  function populateClientFilter() {
+    const emails = [...new Set(allSessions.map(s => s.user_email).filter(Boolean))];
+    const sel = document.getElementById('filter-client');
+    emails.forEach(email => {
+      const opt = document.createElement('option');
+      opt.value = email;
+      opt.textContent = email;
+      sel.appendChild(opt);
+    });
+  }
+
+  function applyFilter() {
+    const status = document.getElementById('filter-status').value;
+    const client = document.getElementById('filter-client').value;
+
+    let filtered = allSessions;
+    if (client !== 'all') filtered = filtered.filter(s => s.user_email === client);
+    if (status === 'new') filtered = filtered.filter(s => !s.rob_notes);
+    if (status === 'reviewed') filtered = filtered.filter(s => s.rob_notes);
+
+    renderSessions(filtered);
+  }
+
+  // ── RENDER SESSIONS ────────────────────────────────────────────────────────
+  function renderSessions(sessions) {
+    const list = document.getElementById('sessions-list');
+    document.getElementById('sessions-count').textContent =
+      `${sessions.length} session${sessions.length !== 1 ? 's' : ''}`;
+
+    if (!sessions.length) {
+      list.innerHTML = `
+        <div class="empty-state">
+          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          <p>No sessions found.<br>Clients will appear here once they complete a practice session.</p>
+        </div>`;
+      return;
+    }
+
+    list.innerHTML = '';
+    sessions.forEach((session, i) => {
+      const card = createSessionCard(session, i);
+      list.appendChild(card);
+    });
+  }
+
+  function createSessionCard(session, idx) {
+    const card = document.createElement('div');
+    card.className = `session-card${session.rob_notes ? ' has-notes' : ' new-session'}`;
+    card.dataset.id = session.id;
+
+    const email = session.user_email || 'Unknown client';
+    const initials = email.slice(0, 2).toUpperCase();
+    const date = new Date(session.created_at).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit'
+    });
+    const recordings = session.recordings || [];
+    const questions = session.questions || [];
+    const jd = session.job_description || '';
+
+    card.innerHTML = `
+      <div class="session-header" onclick="toggleCard('${session.id}')">
+        <div class="session-avatar">${initials}</div>
+        <div class="session-meta">
+          <div class="session-email">${escHtml(email)}</div>
+          <div class="session-date">${date} · ${recordings.length} recording${recordings.length !== 1 ? 's' : ''} · ${questions.length} questions</div>
+        </div>
+        <div class="session-badges">
+          ${session.rob_notes
+            ? '<span class="badge badge-reviewed">Reviewed</span>'
+            : '<span class="badge badge-new">Needs review</span>'}
+          ${recordings.length ? `<span class="badge badge-recordings">${recordings.length} rec</span>` : ''}
+        </div>
+        <svg class="session-chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="6 9 12 15 18 9"/>
+        </svg>
+      </div>
+
+      <div class="session-body">
+
+        ${jd ? `
+        <div class="session-section">
+          <div class="section-label">Job Description</div>
+          <div class="jd-preview" id="jd-${session.id}">${escHtml(jd.slice(0, 300))}${jd.length > 300 ? '…' : ''}</div>
+          ${jd.length > 300 ? `<span class="jd-toggle" onclick="toggleJD('${session.id}', ${JSON.stringify(jd).replace(/"/g, '&quot;')})">Show more</span>` : ''}
+        </div>` : ''}
+
+        ${recordings.length ? `
+        <div class="session-section">
+          <div class="section-label">Recorded Answers (${recordings.length})</div>
+          ${recordings.map((rec, ri) => `
+            <div class="recording-entry">
+              <div class="rec-q-type">${escHtml(rec.questionType || 'Question')}</div>
+              <div class="rec-q-text">${escHtml(rec.questionText || '')}</div>
+              ${rec.transcript ? `
+                <div class="rec-label">What they said</div>
+                <div class="rec-transcript">${escHtml(rec.transcript)}</div>
+              ` : ''}
+              ${rec.feedback ? `
+                <div class="rec-label">AI Feedback</div>
+                <div class="rec-ai-feedback">${escHtml(rec.feedback)}</div>
+              ` : ''}
+            </div>
+          `).join('')}
+        </div>` : `
+        <div class="session-section">
+          <div class="section-label">Questions Generated (${questions.length})</div>
+          <div style="font-size:0.8rem;color:var(--muted2);line-height:1.7;">
+            ${questions.slice(0, 5).map(q => `<div style="margin-bottom:6px;">· ${escHtml(q.question || '')}</div>`).join('')}
+            ${questions.length > 5 ? `<div style="color:var(--muted);margin-top:4px;">…and ${questions.length - 5} more</div>` : ''}
+          </div>
+        </div>`}
+
+        <div class="session-section coach-notes-wrap">
+          <div class="section-label">Your Coaching Notes</div>
+          <textarea
+            class="notes-textarea"
+            id="notes-${session.id}"
+            placeholder="Add your coaching notes here — specific feedback, follow-up topics, next session agenda…"
+          >${escHtml(session.rob_notes || '')}</textarea>
+          <button class="btn-save-notes" id="save-btn-${session.id}" onclick="saveNotes('${session.id}')">
+            <div class="spinner-sm"></div>
+            <span>Save notes</span>
+          </button>
+          <span class="save-confirm" id="save-confirm-${session.id}">✓ Saved</span>
+        </div>
+
+      </div>
+    `;
+
+    return card;
+  }
+
+  // ── INTERACTIONS ──────────────────────────────────────────────────────────
+  function toggleCard(id) {
+    const card = document.querySelector(`.session-card[data-id="${id}"]`);
+    card.classList.toggle('open');
+  }
+
+  function toggleJD(id, fullText) {
+    const el = document.getElementById(`jd-${id}`);
+    const toggle = el.nextElementSibling;
+    if (el.classList.contains('expanded')) {
+      el.textContent = fullText.slice(0, 300) + '…';
+      el.classList.remove('expanded');
+      toggle.textContent = 'Show more';
+    } else {
+      el.textContent = fullText;
+      el.classList.add('expanded');
+      toggle.textContent = 'Show less';
+    }
+  }
+
+  // ── SAVE NOTES ────────────────────────────────────────────────────────────
+  async function saveNotes(sessionId) {
+    const notes = document.getElementById(`notes-${sessionId}`).value;
+    const btn = document.getElementById(`save-btn-${sessionId}`);
+    const confirm = document.getElementById(`save-confirm-${sessionId}`);
+
+    btn.classList.add('loading');
+    btn.disabled = true;
+    confirm.classList.remove('visible');
+
+    const { error } = await sb
+      .from('interview_sessions')
+      .update({ rob_notes: notes })
+      .eq('id', sessionId);
+
+    btn.classList.remove('loading');
+    btn.disabled = false;
+
+    if (error) {
+      alert(`Error saving notes: ${error.message}`);
+      return;
+    }
+
+    confirm.classList.add('visible');
+    setTimeout(() => confirm.classList.remove('visible'), 3000);
+
+    // Update local data and badge
+    const session = allSessions.find(s => s.id === sessionId);
+    if (session) session.rob_notes = notes;
+    const card = document.querySelector(`.session-card[data-id="${sessionId}"]`);
+    if (card) {
+      card.classList.remove('new-session');
+      if (notes) card.classList.add('has-notes');
+      const badge = card.querySelector('.badge-new, .badge-reviewed');
+      if (badge) {
+        badge.className = notes ? 'badge badge-reviewed' : 'badge badge-new';
+        badge.textContent = notes ? 'Reviewed' : 'Needs review';
+      }
+    }
+  }
+
+  // ── UTILS ─────────────────────────────────────────────────────────────────
+  function escHtml(str) {
+    if (!str) return '';
+    return String(str)
+      .replace(/&/g,'&amp;')
+      .replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;')
+      .replace(/"/g,'&quot;');
+  }
+
+  init();
+</script>
+</body>
+</html>
