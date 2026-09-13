@@ -35,25 +35,25 @@ exports.handler = async (event) => {
 
   try {
     if (action === 'generate') {
-      const { jd, stage, focus } = body;
+      const { jd, stage, focus, voice } = body;
 
       if (!jd || jd.trim().length < 50) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Job description is too short. Please paste the full posting.' }) };
       }
 
-      const questions = await generateQuestions(apiKey, jd.trim(), stage || 'new grad', focus || []);
+      const questions = await generateQuestions(apiKey, jd.trim(), stage || 'new grad', focus || [], voice || 'screening');
       return { statusCode: 200, headers, body: JSON.stringify({ questions }) };
     }
 
     if (action === 'feedback') {
-      const { question, answer, jd } = body;
+      const { question, answer, jd, voice } = body;
 
       if (!question || !answer || answer.trim().length < 20) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Please provide both a question and a substantive answer.' }) };
       }
 
       const questionType = body.questionType || '';
-      const feedback = await getFeedback(apiKey, question, answer.trim(), jd || '', questionType);
+      const feedback = await getFeedback(apiKey, question, answer.trim(), jd || '', questionType, voice || '');
       return { statusCode: 200, headers, body: JSON.stringify({ feedback }) };
     }
 
@@ -94,12 +94,29 @@ async function callClaude(apiKey, messages, maxTokens = 1500) {
 
 // ── GENERATE QUESTIONS ────────────────────────────────────────────────────────
 
-async function generateQuestions(apiKey, jd, stage, focus) {
+async function generateQuestions(apiKey, jd, stage, focus, voice) {
+
+  // ── INTERVIEWER VOICE MAP ─────────────────────────────────────────────────
+  // Who is asking shapes emphasis/tone independent of stage (how hard) and
+  // focus (what category). Keys match the data-val sent from the front end.
+  const voiceMap = {
+    screening: {
+      label: 'Screening Call (HR / Recruiter)',
+      instruction: 'This round is a SCREENING CALL with an HR recruiter or talent acquisition coordinator — not the hiring manager or supervisor. They are checking basic qualifications, verifying resume claims, gauging communication and interest, and covering logistics (availability, work authorization). They rarely probe deep technical or functional skill. Keep JD-Based and Technical questions at a surface level ("Have you worked with X?" rather than a deep scenario), and favor broad qualification, motivation, and logistics questions.',
+    },
+    'hiring-manager': {
+      label: 'HR / Hiring Manager',
+      instruction: 'This round is with HR or the HIRING MANAGER — the person who owns the role and will make the hire decision, though not necessarily the candidate\'s day-to-day supervisor. They probe culture fit, motivation, values alignment, and how the candidate works with others and handles ambiguity, alongside a real but not exhaustive review of core qualifications.',
+    },
+    supervisor: {
+      label: 'Direct Supervisor',
+      instruction: 'This round is with the candidate\'s DIRECT SUPERVISOR — the person they would report to day-to-day. This interviewer cares most about whether the candidate can actually do the job. Favor JD-Based and Technical questions that dig into specific tools, responsibilities, and day-to-day scenarios named in the job description, and behavioral questions about how the candidate has handled real work situations, over generic culture or motivation questions.',
+    },
+  };
+  const activeVoice = voiceMap[voice] || voiceMap.screening;
 
   // ── EXCLUSION QUESTIONS BANK ──────────────────────────────────────────────
   const exclusionBank = [
-    "What is your salary expectation for this role?",
-    "Tell me about a weakness or fault you have.",
     "Why did you leave your last role?",
     "Are you interviewing elsewhere?",
     "When can you start?",
@@ -180,6 +197,8 @@ ${jd.slice(0, 3000)}
 
 CANDIDATE STAGE: ${stage}
 
+INTERVIEWER PERSPECTIVE: ${activeVoice.instruction}
+
 Generate exactly 8 questions distributed as follows:
 ${typeBreakdown}
 
@@ -188,7 +207,7 @@ RULES:
 - Each object must have exactly two keys:
   - "type": the question type label exactly as specified above
   - "question": the full question text
-- CALIBRATE DIFFICULTY TO THE CANDIDATE STAGE ABOVE. This is a hard requirement, not a suggestion. For JD-Based and Technical questions especially: do not simply lift a senior-level JD requirement into a question — translate it to what THIS candidate could plausibly speak to.
+- CALIBRATE TO BOTH THE CANDIDATE STAGE AND THE INTERVIEWER PERSPECTIVE ABOVE. This is a hard requirement, not a suggestion. The same focus-area categories should be asked differently depending on who's asking. For JD-Based and Technical questions especially: do not simply lift a senior-level JD requirement into a question — translate it to what THIS candidate could plausibly speak to.
   - New grad (0-1 yrs): ask about coursework, class/personal projects, internships, or how they'd approach learning the skill — not production ownership or scaled systems.
   - Early career (1-5 yrs): ask about direct hands-on work and early individual contributions, not org-wide strategy or managing others.
   - Mid-career (5-11 yrs): ask about leadership of a project/team and measurable impact, appropriate to an individual contributor or first-line manager.
@@ -233,11 +252,16 @@ RULES:
 }
 // ── FEEDBACK ──────────────────────────────────────────────────────────────────
 
-async function getFeedback(apiKey, question, answer, jd, questionType) {
+async function getFeedback(apiKey, question, answer, jd, questionType, voice) {
+
+  const voiceLabelMap = {
+    screening: 'an HR recruiter on a screening call',
+    'hiring-manager': 'the HR/hiring manager',
+    supervisor: 'their direct supervisor',
+  };
+  const voiceNote = voiceLabelMap[voice] ? `\n\nCONTEXT: The candidate was answering as if speaking with ${voiceLabelMap[voice]}.` : '';
 
   const isExclusion = questionType === 'Exclusion Question' ||
-    question.toLowerCase().includes('salary') ||
-    question.toLowerCase().includes('weakness') ||
     question.toLowerCase().includes('why did you leave') ||
     question.toLowerCase().includes('interviewing elsewhere') ||
     question.toLowerCase().includes('when can you start') ||
@@ -324,6 +348,7 @@ Provide feedback in 4-5 sentences. Plain paragraph form, no bullet points. Direc
 INTERVIEW QUESTION: ${question}
 
 CANDIDATE'S ANSWER: ${answer}
+${voiceNote}
 
 ${jd ? `JOB CONTEXT:\n${jd.slice(0, 500)}` : ''}
 

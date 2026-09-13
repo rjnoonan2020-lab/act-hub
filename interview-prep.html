@@ -556,7 +556,17 @@
     </div>
 
     <div class="step">
-      <div class="step-label"><span class="step-num">3</span> Focus areas</div>
+      <div class="step-label"><span class="step-num">3</span> Who's asking</div>
+      <div class="step-title">Who will be interviewing you?</div>
+      <div class="role-chips" id="voice-chips">
+        <button class="chip active" data-val="screening" onclick="selectChip(this, 'voice-chips')">Screening Call</button>
+        <button class="chip" data-val="hiring-manager" onclick="selectChip(this, 'voice-chips')">HR / Hiring Manager</button>
+        <button class="chip" data-val="supervisor" onclick="selectChip(this, 'voice-chips')">Direct Supervisor</button>
+      </div>
+    </div>
+
+    <div class="step">
+      <div class="step-label"><span class="step-num">4</span> Focus areas</div>
       <div class="step-title">What do you want to practice most?</div>
       <div class="focus-grid">
         <label class="focus-item" onclick="this.classList.toggle('checked')">
@@ -618,6 +628,7 @@
   const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZkeW1paGp6ZHZxYnJ4bnltc2FqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE4MjU3OTgsImV4cCI6MjA5NzQwMTc5OH0.94EBt6ZPUIBiv0dj2a82lFJNDm9bX5PV-WQP4ddSO64';
 
   const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  let lastVoice = 'screening';
 
   // ── AUTH GUARD ─────────────────────────────────────────────────────────────
   async function init() {
@@ -661,6 +672,16 @@
     return active ? active.dataset.val : 'new grad / 0–2 years experience';
   }
 
+  function getSelectedVoice() {
+    const active = document.querySelector('#voice-chips .chip.active');
+    return active ? active.dataset.val : 'screening';
+  }
+
+  function getSelectedVoiceLabel() {
+    const active = document.querySelector('#voice-chips .chip.active');
+    return active ? active.textContent : 'Screening Call';
+  }
+
   function getSelectedFocus() {
     const checked = document.querySelectorAll('.focus-item input[type="checkbox"]:checked');
     return Array.from(checked).map(c => c.value);
@@ -692,12 +713,14 @@
 
     const stage = getSelectedStage();
     const focus = getSelectedFocus();
+    const voice = getSelectedVoice();
+    lastVoice = voice;
 
     try {
       const resp = await fetch('/.netlify/functions/interview-prep', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'generate', jd, stage, focus })
+        body: JSON.stringify({ action: 'generate', jd, stage, focus, voice })
       });
 
       if (!resp.ok) {
@@ -706,7 +729,7 @@
       }
 
       const { questions } = await resp.json();
-      renderQuestions(questions, stage);
+      renderQuestions(questions, stage, getSelectedVoiceLabel());
 
     } catch (e) {
       showError('gen-error', `Something went wrong: ${e.message}. Please try again.`);
@@ -717,7 +740,7 @@
   }
 
   // ── RENDER QUESTIONS ───────────────────────────────────────────────────────
-  function renderQuestions(questions, stage) {
+  function renderQuestions(questions, stage, voiceLabel) {
     // Store immediately in sessionStorage for video page handoff
     const jd = document.getElementById('jd-input')?.value?.trim() || '';
     sessionStorage.setItem('fa_interview_questions', JSON.stringify(questions));
@@ -727,7 +750,7 @@
     list.innerHTML = '';
 
     document.getElementById('results-meta').textContent =
-      `${questions.length} questions · ${stage}`;
+      `${questions.length} questions · ${stage} · ${voiceLabel || getSelectedVoiceLabel()}`;
 
     questions.forEach((q, i) => {
       const card = document.createElement('div');
@@ -796,7 +819,7 @@
       const resp = await fetch('/.netlify/functions/interview-prep', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'feedback', question, questionType, answer, jd })
+        body: JSON.stringify({ action: 'feedback', question, questionType, answer, jd, voice: lastVoice })
       });
 
       if (!resp.ok) {
