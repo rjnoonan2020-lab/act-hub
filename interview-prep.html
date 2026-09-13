@@ -225,6 +225,13 @@
   .chip:hover { border-color: rgba(255,255,255,0.2); color: var(--white); }
   .chip.active { border-color: var(--red); color: var(--red); background: rgba(204,51,68,0.08); }
 
+  .focus-hint {
+    font-size: 0.78rem;
+    color: var(--muted);
+    line-height: 1.4;
+    margin: -6px 0 12px;
+  }
+
   /* Focus area checkboxes */
   .focus-grid {
     display: grid;
@@ -569,6 +576,7 @@
     <div class="step">
       <div class="step-label"><span class="step-num">4</span> Focus areas</div>
       <div class="step-title">What do you want to practice most?</div>
+      <div class="focus-hint" id="focus-hint"></div>
       <div class="focus-grid">
         <label class="focus-item" onclick="this.classList.toggle('checked')">
           <input type="checkbox" value="jd-based questions"> <span>Job Description Questions</span>
@@ -657,6 +665,31 @@
     document.querySelectorAll(`#${groupId} .chip`).forEach(c => c.classList.remove('active'));
     el.classList.add('active');
     if (groupId === 'stage-chips') updateStarTipVisibility();
+    if (groupId === 'voice-chips') applyVoiceFocusDefaults(el.dataset.val, el.textContent);
+  }
+
+  // ── VOICE-DRIVEN FOCUS DEFAULTS ────────────────────────────────────────────
+  // Each interviewer voice has a realistic default focus mix — most candidates
+  // won't touch these, but they stay fully editable for anyone who wants to
+  // drill one specific area (e.g. re-checking only Career Story).
+  const voiceFocusDefaults = {
+    screening: ['career story and transitions', 'salary and offer negotiation', 'motivation and culture fit'],
+    'hiring-manager': ['career story and transitions', 'jd-based questions', 'motivation and culture fit', 'behavioral (STAR-format) questions'],
+    supervisor: ['career story and transitions', 'jd-based questions', 'behavioral (STAR-format) questions'],
+  };
+
+  function applyVoiceFocusDefaults(voice, voiceLabel) {
+    const defaults = voiceFocusDefaults[voice] || voiceFocusDefaults.screening;
+    document.querySelectorAll('.focus-item').forEach(label => {
+      const checkbox = label.querySelector('input[type="checkbox"]');
+      const shouldCheck = defaults.includes(checkbox.value);
+      checkbox.checked = shouldCheck;
+      label.classList.toggle('checked', shouldCheck);
+    });
+    const hint = document.getElementById('focus-hint');
+    if (hint) {
+      hint.textContent = `Defaults set for ${voiceLabel} — uncheck a box above (or check others) if you want to practice something specific, like just Career Story.`;
+    }
   }
 
   function updateStarTipVisibility() {
@@ -865,6 +898,7 @@
 
   init();
   updateStarTipVisibility();
+  applyVoiceFocusDefaults('screening', 'Screening Call');
 </script>
 </body>
 </html>
