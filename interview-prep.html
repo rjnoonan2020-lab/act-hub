@@ -288,8 +288,9 @@
 
   .results-header {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
     margin-bottom: 8px;
     padding-bottom: 16px;
     border-bottom: 1px solid var(--border);
@@ -304,6 +305,7 @@
     font-size: 0.72rem;
     color: var(--muted);
     letter-spacing: 1px;
+    line-height: 1.5;
   }
 
   /* Question card */
@@ -509,7 +511,6 @@
     .header-user { display: none; }
     main { padding: 40px 16px 60px; }
     .focus-grid { grid-template-columns: 1fr 1fr; }
-    .results-header { flex-direction: column; align-items: flex-start; gap: 6px; }
   }
 </style>
 </head>
