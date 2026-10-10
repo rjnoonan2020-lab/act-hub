@@ -1387,7 +1387,7 @@ if (error) {
 alert('Couldn’t delete that session — please try again.');
 return;
 }
-if (id === currentSessionId) currentSessionId = null;
+if (id === currentSessionId) { currentSessionId = null; setSaveStatus(''); updateSaveBar(); }
 loadSavedSessions();
 }
 
