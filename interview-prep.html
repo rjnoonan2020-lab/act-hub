@@ -513,11 +513,189 @@
   }
   .btn-reset:hover { color: var(--white); border-color: rgba(255,255,255,0.2); }
 
-  @media (max-width: 600px) {
+  
+/* ── ROLE DETAILS FIELDS ── */
+.step-optional {
+font-size: 0.6rem;
+letter-spacing: 1.5px;
+color: rgba(255,255,255,0.25);
+font-weight: 700;
+}
+.role-fields {
+display: grid;
+grid-template-columns: 1.3fr 1.3fr 1fr;
+gap: 10px;
+}
+.field label {
+display: block;
+font-size: 0.62rem;
+font-weight: 700;
+letter-spacing: 2px;
+text-transform: uppercase;
+color: var(--muted);
+margin-bottom: 6px;
+}
+.field input {
+width: 100%;
+background: var(--surface);
+border: 1px solid var(--border);
+border-radius: 3px;
+color: var(--white);
+font-family: 'DM Sans', sans-serif;
+font-size: 0.88rem;
+padding: 11px 14px;
+outline: none;
+transition: border-color 0.2s;
+color-scheme: dark;
+}
+.field input:focus { border-color: rgba(204,51,68,0.4); }
+.field input::placeholder { color: rgba(255,255,255,0.18); }
+
+/* ── SAVED SESSIONS ── */
+.saved-bar { margin: -24px 0 28px; }
+.btn-saved-toggle {
+display: inline-flex;
+align-items: center;
+gap: 8px;
+background: none;
+border: 1px solid rgba(201,162,39,0.4);
+border-radius: 3px;
+color: var(--gold);
+font-family: 'DM Sans', sans-serif;
+font-size: 0.68rem;
+font-weight: 700;
+letter-spacing: 2px;
+text-transform: uppercase;
+padding: 10px 18px;
+cursor: pointer;
+transition: all 0.15s;
+}
+.btn-saved-toggle:hover { background: rgba(201,162,39,0.08); border-color: var(--gold); }
+.saved-panel {
+display: none;
+background: var(--surface);
+border: 1px solid var(--border);
+border-radius: 3px;
+padding: 18px;
+margin-bottom: 36px;
+}
+.saved-panel.visible { display: block; }
+.saved-tools { display: flex; gap: 8px; margin-bottom: 14px; flex-wrap: wrap; }
+.saved-tools input, .saved-tools select {
+background: var(--surface2);
+border: 1px solid var(--border);
+border-radius: 3px;
+color: var(--white);
+font-family: 'DM Sans', sans-serif;
+font-size: 0.8rem;
+padding: 9px 12px;
+outline: none;
+color-scheme: dark;
+}
+.saved-tools input { flex: 1; min-width: 180px; }
+.saved-empty { font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+.saved-item {
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 14px;
+padding: 14px 0;
+border-top: 1px solid var(--border);
+}
+.saved-item:first-child { border-top: none; padding-top: 0; }
+.saved-name { font-family: 'DM Serif Display', serif; font-size: 1rem; color: var(--white); line-height: 1.3; }
+.saved-meta { font-size: 0.72rem; color: var(--muted); letter-spacing: 0.5px; margin-top: 4px; line-height: 1.5; }
+.saved-actions { display: flex; gap: 6px; flex-shrink: 0; }
+.btn-mini {
+background: none;
+border: 1px solid var(--border);
+border-radius: 2px;
+color: var(--muted2);
+font-family: 'DM Sans', sans-serif;
+font-size: 0.6rem;
+font-weight: 700;
+letter-spacing: 1.5px;
+text-transform: uppercase;
+padding: 7px 10px;
+cursor: pointer;
+transition: all 0.15s;
+}
+.btn-mini:hover { color: var(--white); border-color: rgba(255,255,255,0.25); }
+.btn-mini.primary { border-color: rgba(201,162,39,0.4); color: var(--gold); }
+.btn-mini.danger:hover { color: #f08090; border-color: rgba(204,51,68,0.5); }
+
+/* Save bar (results) */
+.save-bar {
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 12px;
+flex-wrap: wrap;
+background: rgba(201,162,39,0.05);
+border: 1px solid rgba(201,162,39,0.18);
+border-radius: 3px;
+padding: 12px 16px;
+margin: 16px 0 8px;
+}
+.save-label { font-size: 0.8rem; color: var(--muted2); line-height: 1.5; }
+.save-label strong { color: var(--white); font-weight: 500; }
+.save-label a { color: var(--gold); cursor: pointer; text-decoration: underline; margin-left: 6px; font-size: 0.72rem; }
+.save-actions { display: flex; align-items: center; gap: 12px; }
+.save-status { font-size: 0.72rem; color: var(--muted); }
+.btn-save {
+display: inline-flex;
+align-items: center;
+gap: 8px;
+background: var(--gold);
+color: #0a0a0a;
+border: none;
+border-radius: 3px;
+font-family: 'DM Sans', sans-serif;
+font-size: 0.66rem;
+font-weight: 700;
+letter-spacing: 2px;
+text-transform: uppercase;
+padding: 10px 18px;
+cursor: pointer;
+transition: opacity 0.2s;
+}
+.btn-save:hover:not(:disabled) { opacity: 0.88; }
+.btn-save:disabled { opacity: 0.45; cursor: not-allowed; }
+
+/* Save / label modal */
+.modal-backdrop {
+display: none;
+position: fixed;
+inset: 0;
+background: rgba(0,0,0,0.7);
+z-index: 200;
+align-items: center;
+justify-content: center;
+padding: 16px;
+}
+.modal-backdrop.visible { display: flex; }
+.modal {
+width: 100%;
+max-width: 460px;
+background: var(--surface2);
+border: 1px solid var(--border);
+border-radius: 4px;
+padding: 24px;
+}
+.modal-title { font-family: 'DM Serif Display', serif; font-size: 1.35rem; color: var(--white); margin-bottom: 6px; }
+.modal-desc { font-size: 0.82rem; color: var(--muted2); line-height: 1.6; margin-bottom: 18px; }
+.modal .field { margin-bottom: 12px; }
+.modal-error { font-size: 0.78rem; color: #f08090; min-height: 1.2em; margin-bottom: 8px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 10px; }
+
+
+@media (max-width: 600px) {
     .header { padding: 0 20px; }
     .header-user { display: none; }
     main { padding: 40px 16px 60px; }
     .focus-grid { grid-template-columns: 1fr 1fr; }
+.role-fields { grid-template-columns: 1fr; }
+.saved-item { flex-direction: column; align-items: flex-start; }
   }
 </style>
 </head>
@@ -545,14 +723,39 @@
   <!-- INPUT FORM -->
   <div id="input-section">
 
-    <div class="step">
-      <div class="step-label"><span class="step-num">1</span> Job description</div>
+    <div class="saved-bar">
+<button class="btn-saved-toggle" id="btn-saved-toggle" onclick="toggleSavedSessions()">My saved sessions <span id="saved-count"></span></button>
+</div>
+<div class="saved-panel" id="saved-panel">
+<div class="saved-tools">
+<input type="search" id="saved-search" placeholder="Search by company or job title" oninput="renderSavedList()">
+<select id="saved-sort" onchange="renderSavedList()">
+<option value="practiced">Most recently practiced</option>
+<option value="interview">Interview date</option>
+<option value="company">Company A–Z</option>
+</select>
+</div>
+<div id="saved-list"><div class="saved-empty">Loading…</div></div>
+</div>
+
+<div class="step">
+<div class="step-label"><span class="step-num">1</span> Role details <span class="step-optional">· Optional — needed only to save</span></div>
+<div class="step-title">Label this practice session</div>
+<div class="role-fields">
+<div class="field"><label for="company-input">Company</label><input type="text" id="company-input" maxlength="120" placeholder="e.g. Acme Corp" autocomplete="off"></div>
+<div class="field"><label for="title-input">Job title</label><input type="text" id="title-input" maxlength="120" placeholder="e.g. Marketing Coordinator" autocomplete="off"></div>
+<div class="field"><label for="date-input">Interview date</label><input type="date" id="date-input"></div>
+</div>
+</div>
+
+<div class="step">
+      <div class="step-label"><span class="step-num">2</span> Job description</div>
       <div class="step-title">Paste the full job posting</div>
       <textarea id="jd-input" placeholder="Paste the job title, company name, responsibilities, and qualifications here. The more detail you give, the more targeted the questions will be."></textarea>
     </div>
 
     <div class="step">
-      <div class="step-label"><span class="step-num">2</span> Your stage</div>
+      <div class="step-label"><span class="step-num">3</span> Your stage</div>
       <div class="step-title">Where are you in your career?</div>
       <div class="role-chips" id="stage-chips">
         <button class="chip active" data-val="new grad with 0-1 years of experience (focus on internships, campus involvement, classroom projects, and potential)" onclick="selectChip(this, 'stage-chips')">New Grad</button>
@@ -564,7 +767,7 @@
     </div>
 
     <div class="step">
-      <div class="step-label"><span class="step-num">3</span> Who's asking</div>
+      <div class="step-label"><span class="step-num">4</span> Who's asking</div>
       <div class="step-title">Who will be interviewing you?</div>
       <div class="role-chips" id="voice-chips">
         <button class="chip active" data-val="screening" onclick="selectChip(this, 'voice-chips')">Screening Call</button>
@@ -574,7 +777,7 @@
     </div>
 
     <div class="step">
-      <div class="step-label"><span class="step-num">4</span> Focus areas</div>
+      <div class="step-label"><span class="step-num">5</span> Focus areas</div>
       <div class="step-title">What do you want to practice most?</div>
       <div class="focus-hint" id="focus-hint"></div>
       <div class="focus-grid">
@@ -617,6 +820,15 @@
       <div class="results-meta" id="results-meta"></div>
     </div>
 
+<div class="save-bar">
+<div class="save-label" id="save-label"></div>
+<div class="save-actions">
+<span class="save-status" id="save-status"></span>
+<button class="btn-save" id="btn-save" onclick="saveSession()">Save session</button>
+</div>
+</div>
+
+
     <div id="questions-list"></div>
 
     <div style="display: flex; gap: 12px; flex-wrap: wrap; margin-top: 8px;">
@@ -624,12 +836,30 @@
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
         Practice on camera
       </button>
-      <button class="btn-reset" onclick="resetTool()">← New job description</button>
+      <button class="btn-save" onclick="saveSession()" style="padding:16px 28px;">Save session</button>
+<button class="btn-reset" onclick="resetTool()">← New job description</button>
     </div>
 
   </div>
 
 </main>
+
+<!-- SAVE / LABEL MODAL -->
+<div class="modal-backdrop" id="save-modal" onclick="if (event.target === this) closeSaveModal()">
+<div class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+<div class="modal-title" id="modal-title">Name this session</div>
+<div class="modal-desc" id="modal-desc">Add the company so you can find this session later in My saved sessions.</div>
+<div class="field"><label for="modal-company">Company (required)</label><input type="text" id="modal-company" maxlength="120" placeholder="e.g. Acme Corp" autocomplete="off"></div>
+<div class="field"><label for="modal-title-input">Job title</label><input type="text" id="modal-title-input" maxlength="120" placeholder="e.g. Marketing Coordinator" autocomplete="off"></div>
+<div class="field"><label for="modal-date">Interview date</label><input type="date" id="modal-date"></div>
+<div class="modal-error" id="modal-error"></div>
+<div class="modal-actions">
+<button class="btn-mini" onclick="closeSaveModal()">Cancel</button>
+<button class="btn-save" id="modal-save-btn" onclick="submitSaveModal()">Save session</button>
+</div>
+</div>
+</div>
+
 
 <script>
   // ── CONFIGURATION ──────────────────────────────────────────────────────────
@@ -649,6 +879,8 @@
     const email = session.user?.email || '';
     const emailEl = document.getElementById('header-user-email');
     if (emailEl) emailEl.textContent = email;
+currentUserId = session.user.id;
+loadSavedSessions();
   }
 
   async function handleSignOut() {
@@ -749,6 +981,9 @@
     const focus = getSelectedFocus();
     const voice = getSelectedVoice();
     lastVoice = voice;
+currentSessionId = null;
+currentMeta = { stage, stageLabel: document.querySelector('#stage-chips .chip.active')?.textContent || '', voice, voiceLabel: getSelectedVoiceLabel(), focus };
+setSaveStatus('');
 
     try {
       const resp = await fetch('/.netlify/functions/interview-prep', {
@@ -764,6 +999,7 @@
 
       const { questions } = await resp.json();
       renderQuestions(questions, stage, getSelectedVoiceLabel());
+updateSaveBar();
 
     } catch (e) {
       showError('gen-error', `Something went wrong: ${e.message}. Please try again.`);
@@ -775,6 +1011,7 @@
 
   // ── RENDER QUESTIONS ───────────────────────────────────────────────────────
   function renderQuestions(questions, stage, voiceLabel) {
+currentQuestions = questions;
     // Store immediately in sessionStorage for video page handoff
     const jd = document.getElementById('jd-input')?.value?.trim() || '';
     sessionStorage.setItem('fa_interview_questions', JSON.stringify(questions));
@@ -866,6 +1103,7 @@
       document.getElementById(`fb-text-${idx}`).textContent = feedback;
       document.getElementById(`fb-block-${idx}`).classList.add('visible');
       card.classList.add('has-answer');
+if (currentSessionId) scheduleAutoSave(); else setSaveStatus('Not saved yet');
 
     } catch (e) {
       alert(`Feedback error: ${e.message}`);
@@ -888,10 +1126,321 @@
     document.getElementById('input-section').style.display = 'block';
     document.getElementById('jd-input').value = '';
     clearError('gen-error');
+['company-input', 'title-input', 'date-input'].forEach(id => { document.getElementById(id).value = ''; });
+currentSessionId = null;
+currentQuestions = [];
+currentMeta = null;
+setSaveStatus('');
+loadSavedSessions();
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
 
-  // ── UTILS ──────────────────────────────────────────────────────────────────
+  
+// ── SAVED SESSIONS ─────────────────────────────────────────────────────────
+// Sessions are stored in the Supabase table `saved_prep_sessions`, one row per
+// practice session, protected by row-level security (each client sees only
+// their own). Saving is optional — clients can practice without it.
+let currentUserId = null;
+let currentSessionId = null;   // id of the saved row for the session on screen
+let currentQuestions = [];     // questions array from the last render
+let currentMeta = null;        // stage / voice / focus captured at generate time
+let savedSessions = [];
+let modalMode = 'save';        // 'save' (current session) or 'edit' (a list item)
+let modalEditId = null;
+let autoSaveTimer = null;
+
+function fmtDate(d) {
+if (!d) return '';
+const dt = (d.length === 10) ? new Date(d + 'T00:00:00') : new Date(d);
+return dt.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function sessionName(s) {
+return s.job_title ? `${s.company_name} — ${s.job_title}` : s.company_name;
+}
+
+async function loadSavedSessions() {
+const { data, error } = await sb
+.from('saved_prep_sessions')
+.select('id, company_name, job_title, interview_date, voice_label, stage_label, questions, created_at, updated_at')
+.order('updated_at', { ascending: false });
+if (error) {
+console.error('Load sessions error:', error);
+document.getElementById('saved-list').innerHTML =
+'<div class="saved-empty">Could not load your saved sessions right now. Please refresh and try again.</div>';
+return;
+}
+savedSessions = data || [];
+const countEl = document.getElementById('saved-count');
+if (countEl) countEl.textContent = savedSessions.length ? `(${savedSessions.length})` : '';
+renderSavedList();
+}
+
+function toggleSavedSessions() {
+document.getElementById('saved-panel').classList.toggle('visible');
+}
+
+function renderSavedList() {
+const listEl = document.getElementById('saved-list');
+if (!listEl) return;
+if (!savedSessions.length) {
+listEl.innerHTML = '<div class="saved-empty">No saved sessions yet. Fill in the company under Role details, practice, then click <strong>Save session</strong> to keep your questions, answers, and coaching notes here.</div>';
+return;
+}
+const q = (document.getElementById('saved-search')?.value || '').trim().toLowerCase();
+const sort = document.getElementById('saved-sort')?.value || 'practiced';
+let rows = savedSessions.filter(s =>
+!q || (s.company_name || '').toLowerCase().includes(q) || (s.job_title || '').toLowerCase().includes(q));
+if (sort === 'company') {
+rows.sort((a, b) => (a.company_name || '').localeCompare(b.company_name || ''));
+} else if (sort === 'interview') {
+rows.sort((a, b) => {
+if (!a.interview_date) return 1;
+if (!b.interview_date) return -1;
+return a.interview_date.localeCompare(b.interview_date);
+});
+}
+if (!rows.length) {
+listEl.innerHTML = '<div class="saved-empty">No sessions match that search.</div>';
+return;
+}
+listEl.innerHTML = rows.map(s => {
+const qs = Array.isArray(s.questions) ? s.questions : [];
+const answered = qs.filter(x => x.answer && x.answer.trim()).length;
+const meta = [
+s.interview_date ? `Interview: ${fmtDate(s.interview_date)}` : '',
+`Practiced ${fmtDate(s.updated_at || s.created_at)}`,
+s.voice_label || '',
+`${answered} of ${qs.length} answered`
+].filter(Boolean).join(' · ');
+return `
+<div class="saved-item">
+<div>
+<div class="saved-name">${escHtml(sessionName(s))}</div>
+<div class="saved-meta">${escHtml(meta)}</div>
+</div>
+<div class="saved-actions">
+<button class="btn-mini primary" onclick="openSavedSession('${s.id}')">Open</button>
+<button class="btn-mini" onclick="editSavedLabel('${s.id}')">Edit label</button>
+<button class="btn-mini danger" onclick="deleteSavedSession('${s.id}')">Delete</button>
+</div>
+</div>`;
+}).join('');
+}
+
+function collectQuestions() {
+return currentQuestions.map((q, i) => ({
+question: q.question,
+type: q.type || '',
+answer: document.getElementById(`answer-${i}`)?.value?.trim() || '',
+feedback: document.getElementById(`fb-text-${i}`)?.textContent || ''
+}));
+}
+
+function getLabelInputs() {
+return {
+company_name: document.getElementById('company-input').value.trim(),
+job_title: document.getElementById('title-input').value.trim() || null,
+interview_date: document.getElementById('date-input').value || null
+};
+}
+
+function setLabelInputs(s) {
+document.getElementById('company-input').value = s.company_name || '';
+document.getElementById('title-input').value = s.job_title || '';
+document.getElementById('date-input').value = s.interview_date || '';
+}
+
+function setSaveStatus(msg) {
+const el = document.getElementById('save-status');
+if (el) el.textContent = msg;
+}
+
+function updateSaveBar() {
+const label = getLabelInputs();
+const el = document.getElementById('save-label');
+const btn = document.getElementById('btn-save');
+if (!el) return;
+if (currentSessionId) {
+const parts = [`<strong>${escHtml(sessionName(label))}</strong>`];
+if (label.interview_date) parts.push(`Interview ${escHtml(fmtDate(label.interview_date))}`);
+el.innerHTML = `Saved to My sessions: ${parts.join(' · ')} <a onclick="openSaveModal('save')">Edit label</a>`;
+btn.textContent = 'Save changes';
+} else {
+el.innerHTML = label.company_name
+? `Practicing for <strong>${escHtml(sessionName(label))}</strong> — not saved yet.`
+: 'Practice only — this session isn’t saved. Click <strong>Save session</strong> to keep it.';
+btn.textContent = 'Save session';
+}
+}
+
+async function saveSession(opts = {}) {
+const label = getLabelInputs();
+if (!label.company_name) {
+if (opts.silent) return;
+openSaveModal('save');
+return;
+}
+const btn = document.getElementById('btn-save');
+const meta = currentMeta || {};
+const payload = {
+...label,
+stage: meta.stage || null,
+stage_label: meta.stageLabel || null,
+voice: meta.voice || lastVoice,
+voice_label: meta.voiceLabel || null,
+focus_areas: meta.focus || [],
+job_description: document.getElementById('jd-input').value.trim(),
+questions: collectQuestions(),
+updated_at: new Date().toISOString()
+};
+btn.disabled = true;
+setSaveStatus('Saving…');
+let result;
+if (currentSessionId) {
+result = await sb.from('saved_prep_sessions').update(payload).eq('id', currentSessionId).select('id').single();
+} else {
+result = await sb.from('saved_prep_sessions').insert({ ...payload, user_id: currentUserId }).select('id').single();
+}
+btn.disabled = false;
+if (result.error) {
+console.error('Save error:', result.error);
+setSaveStatus('Couldn’t save — please try again.');
+return;
+}
+currentSessionId = result.data.id;
+setSaveStatus(`Saved ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`);
+updateSaveBar();
+loadSavedSessions();
+}
+
+function scheduleAutoSave() {
+if (!currentSessionId) return;
+clearTimeout(autoSaveTimer);
+autoSaveTimer = setTimeout(() => saveSession({ silent: true }), 1500);
+}
+
+function openSaveModal(mode, session) {
+modalMode = mode;
+modalEditId = session ? session.id : null;
+const src = session || getLabelInputs();
+document.getElementById('modal-company').value = src.company_name || '';
+document.getElementById('modal-title-input').value = src.job_title || '';
+document.getElementById('modal-date').value = src.interview_date || '';
+document.getElementById('modal-error').textContent = '';
+const editing = mode === 'edit' || (mode === 'save' && currentSessionId);
+document.getElementById('modal-title').textContent = editing ? 'Edit session label' : 'Name this session';
+document.getElementById('modal-desc').textContent = editing
+? 'Update the company, job title, or interview date for this session.'
+: 'Add the company so you can find this session later in My saved sessions.';
+document.getElementById('modal-save-btn').textContent = editing ? 'Save label' : 'Save session';
+document.getElementById('save-modal').classList.add('visible');
+setTimeout(() => document.getElementById('modal-company').focus(), 50);
+}
+
+function closeSaveModal() {
+document.getElementById('save-modal').classList.remove('visible');
+}
+
+async function submitSaveModal() {
+const company = document.getElementById('modal-company').value.trim();
+if (!company) {
+document.getElementById('modal-error').textContent = 'Please enter the company name.';
+return;
+}
+const label = {
+company_name: company,
+job_title: document.getElementById('modal-title-input').value.trim() || null,
+interview_date: document.getElementById('modal-date').value || null
+};
+if (modalMode === 'edit' && modalEditId && modalEditId !== currentSessionId) {
+const { error } = await sb.from('saved_prep_sessions').update(label).eq('id', modalEditId);
+if (error) {
+document.getElementById('modal-error').textContent = 'Couldn’t update the label — please try again.';
+return;
+}
+closeSaveModal();
+loadSavedSessions();
+return;
+}
+setLabelInputs(label);
+closeSaveModal();
+if (document.getElementById('results').classList.contains('visible')) {
+await saveSession();
+} else if (currentSessionId) {
+await sb.from('saved_prep_sessions').update(label).eq('id', currentSessionId);
+loadSavedSessions();
+}
+}
+
+function editSavedLabel(id) {
+const s = savedSessions.find(x => x.id === id);
+if (s) openSaveModal('edit', s);
+}
+
+async function deleteSavedSession(id) {
+const s = savedSessions.find(x => x.id === id);
+if (!s) return;
+if (!confirm(`Delete the saved session for ${sessionName(s)}? This can’t be undone.`)) return;
+const { error } = await sb.from('saved_prep_sessions').delete().eq('id', id);
+if (error) {
+alert('Couldn’t delete that session — please try again.');
+return;
+}
+if (id === currentSessionId) currentSessionId = null;
+loadSavedSessions();
+}
+
+function selectChipByVal(groupId, val) {
+const chip = Array.from(document.querySelectorAll(`#${groupId} .chip`)).find(c => c.dataset.val === val);
+if (!chip) return;
+document.querySelectorAll(`#${groupId} .chip`).forEach(c => c.classList.remove('active'));
+chip.classList.add('active');
+}
+
+async function openSavedSession(id) {
+const { data: s, error } = await sb.from('saved_prep_sessions').select('*').eq('id', id).single();
+if (error || !s) {
+alert('Couldn’t open that session — please try again.');
+return;
+}
+// Restore the form so feedback calls and re-saves use the same context
+document.getElementById('jd-input').value = s.job_description || '';
+setLabelInputs(s);
+if (s.stage) selectChipByVal('stage-chips', s.stage);
+if (s.voice) selectChipByVal('voice-chips', s.voice);
+document.querySelectorAll('.focus-item').forEach(label => {
+const cb = label.querySelector('input[type="checkbox"]');
+const on = (s.focus_areas || []).includes(cb.value);
+cb.checked = on;
+label.classList.toggle('checked', on);
+});
+updateStarTipVisibility();
+lastVoice = s.voice || 'screening';
+currentMeta = { stage: s.stage, stageLabel: s.stage_label, voice: s.voice, voiceLabel: s.voice_label, focus: s.focus_areas || [] };
+
+const qs = Array.isArray(s.questions) ? s.questions : [];
+renderQuestions(qs.map(q => ({ question: q.question, type: q.type })), s.stage || '', s.voice_label || '');
+qs.forEach((q, i) => {
+if (q.answer) document.getElementById(`answer-${i}`).value = q.answer;
+if (q.feedback) {
+document.getElementById(`fb-text-${i}`).textContent = q.feedback;
+document.getElementById(`fb-block-${i}`).classList.add('visible');
+}
+if (q.answer || q.feedback) document.querySelector(`.q-card[data-idx="${i}"]`).classList.add('has-answer');
+});
+currentSessionId = s.id;
+document.getElementById('saved-panel').classList.remove('visible');
+setSaveStatus(`Last saved ${fmtDate(s.updated_at || s.created_at)}`);
+updateSaveBar();
+}
+
+// Auto-save typed answers on a saved session
+document.addEventListener('input', e => {
+if (e.target.classList && e.target.classList.contains('answer-textarea')) scheduleAutoSave();
+});
+
+// ── UTILS ──────────────────────────────────────────────────────────────────
   function escHtml(str) {
     return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
   }
