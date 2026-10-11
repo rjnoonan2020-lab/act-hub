@@ -137,7 +137,18 @@ COACHING FRAMEWORK:
 - Why should I hire you / what sets you apart: reframe around value delivered, not comparison
 - Personality questions (animal, superhero): pick something, tie to professional strength, keep brief
 
-Provide feedback in 4-5 sentences: did they deflect or answer directly? What leverage/risk did their answer create? Give one specific reframe or deflection phrase. Be direct, warm, and concise.`;
+Cover: did they deflect or answer directly, what leverage or risk their answer created, and one specific reframe or deflection phrase. Be direct, warm, and concise.
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS — 3 short sections, each label in capitals on its own line, followed by 1–2 sentences, with a blank line between sections. No bullet points, no markdown, no bold, no intro or sign-off. Keep the whole response under 120 words.
+
+HOW YOU HANDLED IT
+<1–2 sentences>
+
+THE RISK
+<1–2 sentences>
+
+TRY THIS
+<1–2 sentences>`;
 
   } else if (isTellMe) {
     prompt = `You are a skilled career coach reviewing a candidate's "Tell Me About Yourself" answer.
@@ -152,7 +163,18 @@ COACHING FRAMEWORK:
 - Should NOT go chronologically through entire career
 - Should end with a bridge: "...which is why I'm excited about this opportunity"
 
-Provide feedback in 4-5 sentences: did they follow the structure? Was it concise and tailored? Give one specific improvement. Be direct, warm, and concise.`;
+Cover: did they follow the structure, was it concise and tailored, and one specific improvement. Be direct, warm, and concise.
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS — 3 short sections, each label in capitals on its own line, followed by 1–2 sentences, with a blank line between sections. No bullet points, no markdown, no bold, no intro or sign-off. Keep the whole response under 120 words.
+
+STRUCTURE
+<1–2 sentences>
+
+WHAT TO STRENGTHEN
+<1–2 sentences>
+
+TRY THIS
+<1–2 sentences>`;
 
   } else if (isSeniorBehavioral) {
     prompt = `You are a skilled career coach providing video interview coaching to a senior executive (11+ years experience).
@@ -170,7 +192,21 @@ COACHING FRAMEWORK:
 - Flag if answer was too operational rather than strategic
 - Tone should be peer-to-peer, not instructional
 
-Provide feedback in 5-6 sentences. Plain paragraph form, no bullet points. Direct and concise.`;
+Peer-to-peer tone, direct and concise. Use DELIVERY to note rambling, filler, or trailing off.
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS — 4 short sections, each label in capitals on its own line, followed by 1–2 sentences, with a blank line between sections. No bullet points, no markdown, no bold, no intro or sign-off. Keep the whole response under 150 words.
+
+WHAT'S WORKING
+<1–2 sentences>
+
+WHAT TO STRENGTHEN
+<1–2 sentences>
+
+DELIVERY
+<1–2 sentences>
+
+TRY THIS
+<1–2 sentences>`;
 
   } else {
     prompt = `You are a skilled career coach reviewing a recorded interview answer.
@@ -181,14 +217,21 @@ CANDIDATE'S SPOKEN ANSWER (transcribed): ${transcript}
 
 ${jobDescription ? `JOB CONTEXT:\n${jobDescription.slice(0, 500)}` : ''}
 
-Provide focused coaching feedback in 5-6 sentences covering:
-1. Content — did they answer the question? Was there a clear situation, action, and result?
-2. Delivery — did they ramble, use filler phrases, or trail off?
-3. The single strongest thing about this answer
-4. The single most important thing to fix
-5. One specific suggested phrase or reframe
+WHAT'S WORKING is the single strongest thing about the answer. WHAT TO STRENGTHEN covers content — did they answer the question with a clear situation, action, and result — and the most important fix. DELIVERY covers rambling, filler phrases, or trailing off. TRY THIS is one specific phrase or reframe. Be direct, warm, and specific.
 
-Plain paragraph form, no bullet points. Be direct, warm, and specific.`;
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS — 4 short sections, each label in capitals on its own line, followed by 1–2 sentences, with a blank line between sections. No bullet points, no markdown, no bold, no intro or sign-off. Keep the whole response under 150 words.
+
+WHAT'S WORKING
+<1–2 sentences>
+
+WHAT TO STRENGTHEN
+<1–2 sentences>
+
+DELIVERY
+<1–2 sentences>
+
+TRY THIS
+<1–2 sentences>`;
   }
 
   return await callClaude(apiKey, [{ role: 'user', content: prompt }], 500);

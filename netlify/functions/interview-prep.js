@@ -36,12 +36,13 @@ exports.handler = async (event) => {
   try {
     if (action === 'generate') {
       const { jd, stage, focus, voice } = body;
+      const resume = (body.resume || '').trim();
 
       if (!jd || jd.trim().length < 50) {
         return { statusCode: 400, headers, body: JSON.stringify({ error: 'Job description is too short. Please paste the full posting.' }) };
       }
 
-      const questions = await generateQuestions(apiKey, jd.trim(), stage || 'new grad', focus || [], voice || 'screening');
+      const questions = await generateQuestions(apiKey, jd.trim(), stage || 'new grad', focus || [], voice || 'screening', resume);
       return { statusCode: 200, headers, body: JSON.stringify({ questions }) };
     }
 
@@ -53,7 +54,7 @@ exports.handler = async (event) => {
       }
 
       const questionType = body.questionType || '';
-      const feedback = await getFeedback(apiKey, question, answer.trim(), jd || '', questionType, voice || '');
+      const feedback = await getFeedback(apiKey, question, answer.trim(), jd || '', questionType, voice || '', (body.resume || '').trim());
       return { statusCode: 200, headers, body: JSON.stringify({ feedback }) };
     }
 
@@ -94,7 +95,7 @@ async function callClaude(apiKey, messages, maxTokens = 1500) {
 
 // ── GENERATE QUESTIONS ────────────────────────────────────────────────────────
 
-async function generateQuestions(apiKey, jd, stage, focus, voice) {
+async function generateQuestions(apiKey, jd, stage, focus, voice, resume = '') {
 
   // ── INTERVIEWER VOICE MAP ─────────────────────────────────────────────────
   // Who is asking shapes emphasis/tone independent of stage (how hard) and
@@ -159,6 +160,11 @@ async function generateQuestions(apiKey, jd, stage, focus, voice) {
       count: 1,
       instruction: 'Ask about approach, professional identity, or learning style. Options: "What is your approach to problem solving?", "How do you like to receive feedback?", "What would a former manager say is your biggest strength?", "How do you continue learning professionally?"',
     },
+    'resume-based questions': {
+      type: 'Resume',
+      count: 3,
+      instruction: 'Generate questions drawn DIRECTLY from the candidate\'s resume below — the way a real interviewer reads a resume and asks about it. Mix these angles: walk me through a specific role ("Walk me through your role at [Company]."), expand on a specific accomplishment or number they list ("Your resume mentions [accomplishment] — how did you make that happen?"), explain a transition or gap between roles, or show depth on a skill they list that also matters for this job. Name the actual company, title, project, or result from the resume. Never invent details that are not on the resume.',
+    },
     'salary and offer negotiation': {
       type: 'Exclusion Question',
       count: 2,
@@ -168,7 +174,7 @@ async function generateQuestions(apiKey, jd, stage, focus, voice) {
   };
 
   // Build from selected focus areas
-  const selectedFocus = (focus || []).filter(f => focusMap[f]);
+  const selectedFocus = (focus || []).filter(f => focusMap[f] && (f !== 'resume-based questions' || resume.length >= 100));
   const defaultFocus = ['jd-based questions', 'behavioral (STAR-format) questions'];
   const activeFocus = selectedFocus.length ? selectedFocus : defaultFocus;
 
@@ -196,7 +202,10 @@ JOB DESCRIPTION:
 ${jd.slice(0, 3000)}
 
 CANDIDATE STAGE: ${stage}
-
+${resume ? `
+CANDIDATE RESUME (use it so every question fits this person's real background; only "Resume" questions should name specific resume items):
+${resume.slice(0, 5000)}
+` : ''}
 INTERVIEWER PERSPECTIVE: ${activeVoice.instruction}
 
 Generate exactly 8 questions distributed as follows:
@@ -252,7 +261,9 @@ RULES:
 }
 // ── FEEDBACK ──────────────────────────────────────────────────────────────────
 
-async function getFeedback(apiKey, question, answer, jd, questionType, voice) {
+async function getFeedback(apiKey, question, answer, jd, questionType, voice, resume = '') {
+
+  const resumeNote = resume ? `\n\nCANDIDATE RESUME (for context — if they left out relevant experience from it, point that out in one of your sections):\n${resume.slice(0, 2500)}` : '';
 
   const voiceLabelMap = {
     screening: 'an HR recruiter on a screening call',
@@ -296,7 +307,18 @@ COACHING FRAMEWORK:
 - Why should I hire you / what sets you apart: reframe around value delivered, not comparison to unknown competitors
 - Personality questions (animal, superhero): pick something, tie to professional strength, keep brief
 
-Provide feedback in 4–5 sentences: did they deflect or answer directly? What leverage/risk did their answer create? Give one specific reframe or deflection phrase they could use. Be direct, warm, and concise.`;
+Cover: did they deflect or answer directly, what leverage or risk their answer created, and one specific reframe or deflection phrase they could use. Be direct, warm, and concise.
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS — 3 short sections, each label in capitals on its own line, followed by 1–2 sentences, with a blank line between sections. No bullet points, no markdown, no bold, no intro or sign-off. Keep the whole response under 120 words.
+
+HOW YOU HANDLED IT
+<1–2 sentences>
+
+THE RISK
+<1–2 sentences>
+
+TRY THIS
+<1–2 sentences>`;
 
   } else if (isTellMe) {
     prompt = `You are a skilled career coach reviewing a candidate's "Tell Me About Yourself" answer — their 60-second professional pitch.
@@ -312,7 +334,20 @@ COACHING FRAMEWORK:
 - Should NOT start with birth/childhood or go chronologically through everything
 - Should end with a bridge: "...which is why I'm excited about this opportunity"
 
-Provide feedback in 4–5 sentences: did they follow the structure? Was it concise? Was it tailored? Give one specific improvement. Be direct, warm, and concise.`;
+${resumeNote}
+
+Cover: did they follow the Present → Past → Future structure, was it concise and tailored, and one specific improvement. Be direct, warm, and concise.
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS — 3 short sections, each label in capitals on its own line, followed by 1–2 sentences, with a blank line between sections. No bullet points, no markdown, no bold, no intro or sign-off. Keep the whole response under 120 words.
+
+STRUCTURE
+<1–2 sentences>
+
+WHAT TO STRENGTHEN
+<1–2 sentences>
+
+TRY THIS
+<1–2 sentences>`;
 
   } else {
     const isSeniorBehavioral = (
@@ -341,7 +376,20 @@ COACHING FRAMEWORK:
 - Flag if answer was too operational rather than strategic
 - Tone should be peer-to-peer, not instructional
 
-Provide feedback in 4-5 sentences. Plain paragraph form, no bullet points. Direct and concise.`;
+${resumeNote}
+
+Peer-to-peer tone, direct and concise.
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS — 3 short sections, each label in capitals on its own line, followed by 1–2 sentences, with a blank line between sections. No bullet points, no markdown, no bold, no intro or sign-off. Keep the whole response under 120 words.
+
+WHAT'S WORKING
+<1–2 sentences>
+
+WHAT TO STRENGTHEN
+<1–2 sentences>
+
+TRY THIS
+<1–2 sentences>`;
     } else {
       prompt = `You are a skilled career coach providing targeted interview coaching.
 
@@ -352,12 +400,20 @@ ${voiceNote}
 
 ${jd ? `JOB CONTEXT:\n${jd.slice(0, 500)}` : ''}
 
-Provide concise coaching feedback in 4-5 sentences:
-1. What's working — be specific, not generic
-2. The single most important thing to strengthen
-3. One concrete suggestion or phrase they could use differently
+${resumeNote}
 
-Be direct and constructive. Plain paragraph form, no bullet points or headers. Under 120 words.`;
+WHAT'S WORKING should be specific, not generic. WHAT TO STRENGTHEN is the single most important fix. TRY THIS is one concrete suggestion or phrase they could use instead. Be direct and constructive.
+
+FORMAT YOUR RESPONSE EXACTLY LIKE THIS — 3 short sections, each label in capitals on its own line, followed by 1–2 sentences, with a blank line between sections. No bullet points, no markdown, no bold, no intro or sign-off. Keep the whole response under 130 words.
+
+WHAT'S WORKING
+<1–2 sentences>
+
+WHAT TO STRENGTHEN
+<1–2 sentences>
+
+TRY THIS
+<1–2 sentences>`;
     }
   }
 
