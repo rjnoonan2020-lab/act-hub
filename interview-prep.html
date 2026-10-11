@@ -463,8 +463,25 @@
     font-size: 0.85rem;
     color: var(--muted2);
     line-height: 1.75;
-    white-space: pre-wrap;
   }
+
+  /* Formatted coaching feedback */
+  .fb-h {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 14px 0 4px;
+  }
+  .fb-h:first-child { margin-top: 0; }
+  .fb-p { margin: 0 0 8px; white-space: normal; }
+  .fb-p:last-child { margin-bottom: 0; }
+
+  #resume-input { min-height: 140px; }
+  .resume-note { font-size: 0.75rem; color: var(--muted); line-height: 1.5; margin-top: 8px; }
+  .focus-item.resume-focus { display: none; }
+  .focus-item.resume-focus.available { display: flex; }
 
   /* STAR tip */
   .star-tip {
@@ -755,7 +772,14 @@ padding: 24px;
     </div>
 
     <div class="step">
-      <div class="step-label"><span class="step-num">3</span> Your stage</div>
+      <div class="step-label"><span class="step-num">3</span> Your resume <span class="step-optional">· Optional</span></div>
+      <div class="step-title">Paste your resume</div>
+      <textarea id="resume-input" oninput="onResumeInput()" placeholder="Paste your resume here…"></textarea>
+      <div class="resume-note">Adding your resume unlocks <strong>Resume Questions</strong> under Focus areas, and lets the coaching point out experience you could have used. Your resume is used only for this session and is not saved.</div>
+    </div>
+
+    <div class="step">
+      <div class="step-label"><span class="step-num">4</span> Your stage</div>
       <div class="step-title">Where are you in your career?</div>
       <div class="role-chips" id="stage-chips">
         <button class="chip active" data-val="new grad with 0-1 years of experience (focus on internships, campus involvement, classroom projects, and potential)" onclick="selectChip(this, 'stage-chips')">New Grad</button>
@@ -767,7 +791,7 @@ padding: 24px;
     </div>
 
     <div class="step">
-      <div class="step-label"><span class="step-num">4</span> Who's asking</div>
+      <div class="step-label"><span class="step-num">5</span> Who's asking</div>
       <div class="step-title">Who will be interviewing you?</div>
       <div class="role-chips" id="voice-chips">
         <button class="chip active" data-val="screening" onclick="selectChip(this, 'voice-chips')">Screening Call</button>
@@ -777,7 +801,7 @@ padding: 24px;
     </div>
 
     <div class="step">
-      <div class="step-label"><span class="step-num">5</span> Focus areas</div>
+      <div class="step-label"><span class="step-num">6</span> Focus areas</div>
       <div class="step-title">What do you want to practice most?</div>
       <div class="focus-hint" id="focus-hint"></div>
       <div class="focus-grid">
@@ -795,6 +819,9 @@ padding: 24px;
         </label>
         <label class="focus-item" onclick="this.classList.toggle('checked')">
           <input type="checkbox" value="career story and transitions"> <span>Career Story</span>
+        </label>
+        <label class="focus-item resume-focus" id="resume-focus" onclick="this.classList.toggle('checked')">
+          <input type="checkbox" value="resume-based questions"> <span>Resume Questions</span>
         </label>
       </div>
     </div>
@@ -914,6 +941,7 @@ loadSavedSessions();
     const defaults = voiceFocusDefaults[voice] || voiceFocusDefaults.screening;
     document.querySelectorAll('.focus-item').forEach(label => {
       const checkbox = label.querySelector('input[type="checkbox"]');
+      if (checkbox.value === 'resume-based questions') return;
       const shouldCheck = defaults.includes(checkbox.value);
       checkbox.checked = shouldCheck;
       label.classList.toggle('checked', shouldCheck);
@@ -989,7 +1017,7 @@ setSaveStatus('');
       const resp = await fetch('/.netlify/functions/interview-prep', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'generate', jd, stage, focus, voice })
+        body: JSON.stringify({ action: 'generate', jd, stage, focus, voice, resume: getResumeText() })
       });
 
       if (!resp.ok) {
@@ -1090,7 +1118,7 @@ currentQuestions = questions;
       const resp = await fetch('/.netlify/functions/interview-prep', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'feedback', question, questionType, answer, jd, voice: lastVoice })
+        body: JSON.stringify({ action: 'feedback', question, questionType, answer, jd, voice: lastVoice, resume: getResumeText() })
       });
 
       if (!resp.ok) {
@@ -1100,7 +1128,7 @@ currentQuestions = questions;
 
       const { feedback } = await resp.json();
 
-      document.getElementById(`fb-text-${idx}`).textContent = feedback;
+      renderFeedback(document.getElementById(`fb-text-${idx}`), feedback);
       document.getElementById(`fb-block-${idx}`).classList.add('visible');
       card.classList.add('has-answer');
 if (currentSessionId) scheduleAutoSave(); else setSaveStatus('Not saved yet');
@@ -1125,6 +1153,8 @@ if (currentSessionId) scheduleAutoSave(); else setSaveStatus('Not saved yet');
     document.getElementById('results').classList.remove('visible');
     document.getElementById('input-section').style.display = 'block';
     document.getElementById('jd-input').value = '';
+    document.getElementById('resume-input').value = '';
+    onResumeInput();
     clearError('gen-error');
 ['company-input', 'title-input', 'date-input'].forEach(id => { document.getElementById(id).value = ''; });
 currentSessionId = null;
@@ -1233,7 +1263,7 @@ return currentQuestions.map((q, i) => ({
 question: q.question,
 type: q.type || '',
 answer: document.getElementById(`answer-${i}`)?.value?.trim() || '',
-feedback: document.getElementById(`fb-text-${i}`)?.textContent || ''
+feedback: document.getElementById(`fb-text-${i}`)?.dataset.raw || document.getElementById(`fb-text-${i}`)?.textContent || ''
 }));
 }
 
@@ -1424,7 +1454,7 @@ renderQuestions(qs.map(q => ({ question: q.question, type: q.type })), s.stage |
 qs.forEach((q, i) => {
 if (q.answer) document.getElementById(`answer-${i}`).value = q.answer;
 if (q.feedback) {
-document.getElementById(`fb-text-${i}`).textContent = q.feedback;
+renderFeedback(document.getElementById(`fb-text-${i}`), q.feedback);
 document.getElementById(`fb-block-${i}`).classList.add('visible');
 }
 if (q.answer || q.feedback) document.querySelector(`.q-card[data-idx="${i}"]`).classList.add('has-answer');
@@ -1439,6 +1469,75 @@ updateSaveBar();
 document.addEventListener('input', e => {
 if (e.target.classList && e.target.classList.contains('answer-textarea')) scheduleAutoSave();
 });
+
+
+// ── FEEDBACK FORMATTING ────────────────────────────────────────────────────
+// Coaching feedback comes back as short labeled sections (WHAT'S WORKING,
+// WHAT TO STRENGTHEN, TRY THIS…). Older feedback is one block of text, so it
+// is split into short paragraphs instead.
+function fbEsc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function feedbackHtml(text) {
+  const clean = String(text || '').replace(/\r/g, '').replace(/\*\*/g, '').trim();
+  if (!clean) return '';
+  const isHeading = l => /^[A-Z][A-Z'’&\/ -]{2,40}:?$/.test(l);
+  const sections = [];
+  let cur = null;
+  clean.split('\n').forEach(raw => {
+    const l = raw.trim();
+    if (!l) { if (cur) cur.paras.push(''); return; }
+    if (isHeading(l)) { cur = { heading: l.replace(/:$/, ''), paras: [] }; sections.push(cur); return; }
+    // "LABEL: text" on one line
+    const m = l.match(/^([A-Z][A-Z'’&\/ -]{2,40}):\s+(.+)$/);
+    if (m) { cur = { heading: m[1], paras: [m[2]] }; sections.push(cur); return; }
+    if (!cur) { cur = { heading: '', paras: [] }; sections.push(cur); }
+    cur.paras.push(l);
+  });
+  const hasHeadings = sections.some(s => s.heading);
+  if (!hasHeadings) {
+    // Legacy single block: group sentences two at a time
+    const sentences = clean.replace(/\n+/g, ' ').match(/[^.!?]+[.!?]+["”’)]*\s*|[^.!?]+$/g) || [clean];
+    const paras = [];
+    for (let i = 0; i < sentences.length; i += 2) paras.push(sentences.slice(i, i + 2).join('').trim());
+    return paras.map(p => `<p class="fb-p">${fbEsc(p)}</p>`).join('');
+  }
+  return sections.map(s => {
+    const body = s.paras.join('\n').split(/\n{2,}/).map(p => p.replace(/\n/g, ' ').trim()).filter(Boolean);
+    return (s.heading ? `<div class="fb-h">${fbEsc(s.heading)}</div>` : '') +
+      body.map(p => `<p class="fb-p">${fbEsc(p)}</p>`).join('');
+  }).join('');
+}
+function renderFeedback(el, text) {
+  if (!el) return;
+  el.dataset.raw = text || '';
+  el.innerHTML = feedbackHtml(text);
+}
+
+// ── RESUME ─────────────────────────────────────────────────────────────────
+// Resume text is sent with each request but never saved to Supabase.
+let resumeFocusAutoChecked = false;
+function getResumeText() {
+  const el = document.getElementById('resume-input');
+  return el ? el.value.trim().slice(0, 8000) : '';
+}
+function onResumeInput() {
+  const item = document.getElementById('resume-focus');
+  if (!item) return;
+  const cb = item.querySelector('input[type="checkbox"]');
+  const has = getResumeText().length >= 100;
+  item.classList.toggle('available', has);
+  if (has && !resumeFocusAutoChecked) {
+    cb.checked = true;
+    item.classList.add('checked');
+    resumeFocusAutoChecked = true;
+  }
+  if (!has) {
+    cb.checked = false;
+    item.classList.remove('checked');
+    resumeFocusAutoChecked = false;
+  }
+}
 
 // ── UTILS ──────────────────────────────────────────────────────────────────
   function escHtml(str) {

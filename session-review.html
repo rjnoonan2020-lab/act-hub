@@ -295,6 +295,19 @@
     padding: 10px 14px;
     margin-bottom: 10px;
   }
+
+  /* Formatted coaching feedback */
+  .fb-h {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 14px 0 4px;
+  }
+  .fb-h:first-child { margin-top: 0; }
+  .fb-p { margin: 0 0 8px; white-space: normal; }
+  .fb-p:last-child { margin-bottom: 0; }
   .rec-ai-feedback {
     font-size: 0.8rem;
     color: var(--muted2);
@@ -573,13 +586,14 @@
             <div class="recording-entry">
               <div class="rec-q-type">${escHtml(rec.questionType || 'Question')}</div>
               <div class="rec-q-text">${escHtml(rec.questionText || '')}</div>
+              ${rec.durationSeconds ? `<div class="rec-label">Answer length: ${Math.floor(rec.durationSeconds / 60)}:${String(rec.durationSeconds % 60).padStart(2, '0')}${rec.durationSeconds > 120 ? ' (over 2:00)' : ''}</div>` : ''}
               ${rec.transcript ? `
                 <div class="rec-label">What they said</div>
                 <div class="rec-transcript">${escHtml(rec.transcript)}</div>
               ` : ''}
               ${rec.feedback ? `
                 <div class="rec-label">AI Feedback</div>
-                <div class="rec-ai-feedback">${escHtml(rec.feedback)}</div>
+                <div class="rec-ai-feedback">${feedbackHtml(rec.feedback)}</div>
               ` : ''}
             </div>
           `).join('')}
@@ -674,6 +688,50 @@
   }
 
   // ── UTILS ─────────────────────────────────────────────────────────────────
+
+// ── FEEDBACK FORMATTING ────────────────────────────────────────────────────
+// Coaching feedback comes back as short labeled sections (WHAT'S WORKING,
+// WHAT TO STRENGTHEN, TRY THIS…). Older feedback is one block of text, so it
+// is split into short paragraphs instead.
+function fbEsc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function feedbackHtml(text) {
+  const clean = String(text || '').replace(/\r/g, '').replace(/\*\*/g, '').trim();
+  if (!clean) return '';
+  const isHeading = l => /^[A-Z][A-Z'’&\/ -]{2,40}:?$/.test(l);
+  const sections = [];
+  let cur = null;
+  clean.split('\n').forEach(raw => {
+    const l = raw.trim();
+    if (!l) { if (cur) cur.paras.push(''); return; }
+    if (isHeading(l)) { cur = { heading: l.replace(/:$/, ''), paras: [] }; sections.push(cur); return; }
+    // "LABEL: text" on one line
+    const m = l.match(/^([A-Z][A-Z'’&\/ -]{2,40}):\s+(.+)$/);
+    if (m) { cur = { heading: m[1], paras: [m[2]] }; sections.push(cur); return; }
+    if (!cur) { cur = { heading: '', paras: [] }; sections.push(cur); }
+    cur.paras.push(l);
+  });
+  const hasHeadings = sections.some(s => s.heading);
+  if (!hasHeadings) {
+    // Legacy single block: group sentences two at a time
+    const sentences = clean.replace(/\n+/g, ' ').match(/[^.!?]+[.!?]+["”’)]*\s*|[^.!?]+$/g) || [clean];
+    const paras = [];
+    for (let i = 0; i < sentences.length; i += 2) paras.push(sentences.slice(i, i + 2).join('').trim());
+    return paras.map(p => `<p class="fb-p">${fbEsc(p)}</p>`).join('');
+  }
+  return sections.map(s => {
+    const body = s.paras.join('\n').split(/\n{2,}/).map(p => p.replace(/\n/g, ' ').trim()).filter(Boolean);
+    return (s.heading ? `<div class="fb-h">${fbEsc(s.heading)}</div>` : '') +
+      body.map(p => `<p class="fb-p">${fbEsc(p)}</p>`).join('');
+  }).join('');
+}
+function renderFeedback(el, text) {
+  if (!el) return;
+  el.dataset.raw = text || '';
+  el.innerHTML = feedbackHtml(text);
+}
+
   function escHtml(str) {
     if (!str) return '';
     return String(str)

@@ -459,8 +459,57 @@
     font-size: 0.88rem;
     color: var(--white);
     line-height: 1.8;
-    white-space: pre-wrap;
   }
+
+  /* Formatted coaching feedback */
+  .fb-h {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--gold);
+    margin: 14px 0 4px;
+  }
+  .fb-h:first-child { margin-top: 0; }
+  .fb-p { margin: 0 0 8px; white-space: normal; }
+  .fb-p:last-child { margin-bottom: 0; }
+
+  /* Two-minute answer timer */
+  .mode-toggle-wrap { flex-wrap: wrap; row-gap: 12px; }
+  .mode-toggle-wrap .mode-label.timer-label { margin-left: 16px; }
+  .rec-timer.warn { color: var(--gold); }
+  .rec-timer.over { color: #ff5a6a; }
+  .timer-bar {
+    position: absolute;
+    left: 0; right: 0; bottom: 0;
+    height: 4px;
+    background: rgba(255,255,255,0.08);
+    z-index: 3;
+    display: none;
+  }
+  .timer-bar.visible { display: block; }
+  .timer-bar-fill {
+    height: 100%;
+    width: 0%;
+    background: #4caf50;
+    transition: width 1s linear, background 0.3s;
+  }
+  .length-result {
+    display: none;
+    font-size: 0.85rem;
+    line-height: 1.5;
+    color: var(--white);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-left: 3px solid #4caf50;
+    border-radius: 3px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+  }
+  .length-result.visible { display: block; }
+  .length-result.short { border-left-color: var(--gold); }
+  .length-result.over { border-left-color: var(--red); }
+  .length-result strong { font-family: 'Bebas Neue', sans-serif; font-size: 1.3rem; letter-spacing: 1.5px; margin-right: 8px; }
 
   /* ── SESSION COMPLETE ── */
   .session-complete {
@@ -725,6 +774,11 @@
         <button class="toggle-btn active" id="toggle-one" onclick="setMode('one')">One at a time</button>
         <button class="toggle-btn" id="toggle-full" onclick="setMode('full')">Full mock interview</button>
       </div>
+      <span class="mode-label timer-label">2-min timer</span>
+      <div class="toggle-group">
+        <button class="toggle-btn active" id="timer-show" onclick="setTimerMode('show')">Show</button>
+        <button class="toggle-btn" id="timer-hide" onclick="setTimerMode('hide')">Hide until done</button>
+      </div>
     </div>
 
     <!-- Progress (full mock only) -->
@@ -849,6 +903,9 @@
       <span id="status-text">Ready to record</span>
     </div>
 
+    <!-- Answer length result -->
+    <div class="length-result" id="length-result"></div>
+
     <!-- Video panels -->
     <div class="video-area">
       <div class="video-panel" id="live-panel">
@@ -858,6 +915,7 @@
           REC
         </div>
         <div class="rec-timer" id="rec-timer">0:00</div>
+        <div class="timer-bar" id="timer-bar"><div class="timer-bar-fill" id="timer-bar-fill"></div></div>
         <video id="live-video" autoplay muted playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
 
         <!-- Positioning guide overlay -->
@@ -1272,7 +1330,12 @@
     document.getElementById('rec-indicator').classList.add('visible');
     document.getElementById('position-guide').style.display = 'none';
     stopPositionCheck();
-    document.getElementById('rec-timer').classList.add('visible');
+    resetTimerDisplay();
+    document.getElementById('length-result').classList.remove('visible');
+    if (timerMode === 'show') {
+      document.getElementById('rec-timer').classList.add('visible');
+      document.getElementById('timer-bar').classList.add('visible');
+    }
     document.getElementById('btn-record-label').textContent = 'Stop recording';
     document.getElementById('btn-record').classList.add('recording');
     document.getElementById('btn-retake').disabled = true;
@@ -1293,6 +1356,8 @@
     stopAnalysis();
     document.getElementById('rec-indicator').classList.remove('visible');
     document.getElementById('rec-timer').classList.remove('visible');
+    document.getElementById('timer-bar').classList.remove('visible');
+    showLengthResult(timerSeconds);
     document.getElementById('btn-record-label').textContent = 'Record answer';
     document.getElementById('btn-record').classList.remove('recording');
     setStatus('gold', 'Processing recording…');
@@ -1325,6 +1390,7 @@
     document.getElementById('playback-placeholder').style.display = 'flex';
     document.getElementById('feedback-panel').classList.remove('visible');
     document.getElementById('scorecard').classList.remove('visible');
+    document.getElementById('length-result').classList.remove('visible');
     document.getElementById('position-guide').style.display = 'flex';
     startPositionCheck();
     document.getElementById('btn-retake').disabled = true;
@@ -1344,8 +1410,120 @@
     document.getElementById('btn-retake').disabled = true;
     document.getElementById('btn-feedback').disabled = true;
     document.getElementById('btn-save').disabled = !sessionData.recordings.length;
+    document.getElementById('length-result').classList.remove('visible');
     if (stream) setStatus('green', 'Ready to record');
   }
+
+
+// ── FEEDBACK FORMATTING ────────────────────────────────────────────────────
+// Coaching feedback comes back as short labeled sections (WHAT'S WORKING,
+// WHAT TO STRENGTHEN, TRY THIS…). Older feedback is one block of text, so it
+// is split into short paragraphs instead.
+function fbEsc(s) {
+  return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function feedbackHtml(text) {
+  const clean = String(text || '').replace(/\r/g, '').replace(/\*\*/g, '').trim();
+  if (!clean) return '';
+  const isHeading = l => /^[A-Z][A-Z'’&\/ -]{2,40}:?$/.test(l);
+  const sections = [];
+  let cur = null;
+  clean.split('\n').forEach(raw => {
+    const l = raw.trim();
+    if (!l) { if (cur) cur.paras.push(''); return; }
+    if (isHeading(l)) { cur = { heading: l.replace(/:$/, ''), paras: [] }; sections.push(cur); return; }
+    // "LABEL: text" on one line
+    const m = l.match(/^([A-Z][A-Z'’&\/ -]{2,40}):\s+(.+)$/);
+    if (m) { cur = { heading: m[1], paras: [m[2]] }; sections.push(cur); return; }
+    if (!cur) { cur = { heading: '', paras: [] }; sections.push(cur); }
+    cur.paras.push(l);
+  });
+  const hasHeadings = sections.some(s => s.heading);
+  if (!hasHeadings) {
+    // Legacy single block: group sentences two at a time
+    const sentences = clean.replace(/\n+/g, ' ').match(/[^.!?]+[.!?]+["”’)]*\s*|[^.!?]+$/g) || [clean];
+    const paras = [];
+    for (let i = 0; i < sentences.length; i += 2) paras.push(sentences.slice(i, i + 2).join('').trim());
+    return paras.map(p => `<p class="fb-p">${fbEsc(p)}</p>`).join('');
+  }
+  return sections.map(s => {
+    const body = s.paras.join('\n').split(/\n{2,}/).map(p => p.replace(/\n/g, ' ').trim()).filter(Boolean);
+    return (s.heading ? `<div class="fb-h">${fbEsc(s.heading)}</div>` : '') +
+      body.map(p => `<p class="fb-p">${fbEsc(p)}</p>`).join('');
+  }).join('');
+}
+function renderFeedback(el, text) {
+  if (!el) return;
+  el.dataset.raw = text || '';
+  el.innerHTML = feedbackHtml(text);
+}
+
+  // ── TWO-MINUTE ANSWER TIMER ───────────────────────────────────────────────
+  // 'show' = live clock + progress bar (amber at 1:30, red past 2:00).
+  // 'hide' = nothing on screen while answering; length shown after stopping,
+  // so candidates learn what two minutes feels like.
+  const TARGET_SECONDS = 120;
+  const WARN_SECONDS = 90;
+  let timerMode = 'show';
+  try { if (localStorage.getItem('fa_timer_mode') === 'hide') timerMode = 'hide'; } catch (e) {}
+
+  function setTimerMode(m) {
+    timerMode = m;
+    try { localStorage.setItem('fa_timer_mode', m); } catch (e) {}
+    document.getElementById('timer-show').classList.toggle('active', m === 'show');
+    document.getElementById('timer-hide').classList.toggle('active', m === 'hide');
+    if (isRecording) {
+      document.getElementById('rec-timer').classList.toggle('visible', m === 'show');
+      document.getElementById('timer-bar').classList.toggle('visible', m === 'show');
+    }
+  }
+
+  function fmtClock(sec) {
+    return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+  }
+
+  function resetTimerDisplay() {
+    const t = document.getElementById('rec-timer');
+    t.textContent = '0:00';
+    t.classList.remove('warn', 'over');
+    const fill = document.getElementById('timer-bar-fill');
+    fill.style.width = '0%';
+    fill.style.background = '#4caf50';
+  }
+
+  function updateTimerDisplay(sec) {
+    const t = document.getElementById('rec-timer');
+    const fill = document.getElementById('timer-bar-fill');
+    if (sec <= TARGET_SECONDS) {
+      t.textContent = `${fmtClock(sec)} / 2:00`;
+    } else {
+      t.textContent = `+${fmtClock(sec - TARGET_SECONDS)} over`;
+    }
+    t.classList.toggle('warn', sec >= WARN_SECONDS && sec < TARGET_SECONDS);
+    t.classList.toggle('over', sec >= TARGET_SECONDS);
+    fill.style.width = `${Math.min(100, (sec / TARGET_SECONDS) * 100)}%`;
+    fill.style.background = sec >= TARGET_SECONDS ? '#cc3344' : sec >= WARN_SECONDS ? '#c9a227' : '#4caf50';
+  }
+
+  function showLengthResult(sec) {
+    const el = document.getElementById('length-result');
+    if (!el || !sec) return;
+    let msg, cls = '';
+    if (sec > TARGET_SECONDS) {
+      const over = sec - TARGET_SECONDS;
+      msg = `About ${over < 60 ? over + ' seconds' : fmtClock(over)} over two minutes. Look for a detail or two you could trim.`;
+      cls = 'over';
+    } else if (sec < 45) {
+      msg = 'On the short side. Most strong answers land between 1 and 2 minutes, so there may be room for one more specific example or result.';
+      cls = 'short';
+    } else {
+      msg = 'Right in the zone — under two minutes.';
+    }
+    el.className = `length-result visible ${cls}`;
+    el.innerHTML = `<strong>${fmtClock(sec)}</strong>${msg}`;
+  }
+
+  setTimerMode(timerMode);
 
   // ── TIMER ─────────────────────────────────────────────────────────────────
   function startTimer() {
@@ -1353,7 +1531,7 @@
       timerSeconds++;
       const m = Math.floor(timerSeconds / 60);
       const s = timerSeconds % 60;
-      document.getElementById('rec-timer').textContent = `${m}:${s.toString().padStart(2,'0')}`;
+      updateTimerDisplay(timerSeconds);
 
       // Auto-stop at 3 minutes
       if (timerSeconds >= 180) stopRecording();
@@ -1418,7 +1596,7 @@
       const aStatus = document.getElementById('analysis-status');
       if (aStatus) aStatus.style.display = 'none';
       document.getElementById('transcript-text').textContent = transcript || '(No transcript available)';
-      document.getElementById('coaching-text').textContent = feedback;
+      renderFeedback(document.getElementById('coaching-text'), feedback);
       document.getElementById('feedback-panel').classList.add('visible');
 
       // Update filler word score from transcript
@@ -1443,6 +1621,7 @@
         questionType: question.type,
         transcript,
         feedback,
+        durationSeconds: timerSeconds,
         recordedAt: new Date().toISOString()
       });
 
