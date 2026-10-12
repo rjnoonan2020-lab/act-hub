@@ -1422,6 +1422,10 @@
 function fbEsc(s) {
   return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
+function fbLabel(h) {
+  // Older feedback used "TRY THIS" — show it with the current heading
+  return /^TRY THIS$/i.test(h.trim()) ? 'TRY ANSWERING IT THIS WAY' : h;
+}
 function feedbackHtml(text) {
   const clean = String(text || '').replace(/\r/g, '').replace(/\*\*/g, '').trim();
   if (!clean) return '';
@@ -1431,10 +1435,10 @@ function feedbackHtml(text) {
   clean.split('\n').forEach(raw => {
     const l = raw.trim();
     if (!l) { if (cur) cur.paras.push(''); return; }
-    if (isHeading(l)) { cur = { heading: l.replace(/:$/, ''), paras: [] }; sections.push(cur); return; }
+    if (isHeading(l)) { cur = { heading: fbLabel(l.replace(/:$/, '')), paras: [] }; sections.push(cur); return; }
     // "LABEL: text" on one line
     const m = l.match(/^([A-Z][A-Z'’&\/ -]{2,40}):\s+(.+)$/);
-    if (m) { cur = { heading: m[1], paras: [m[2]] }; sections.push(cur); return; }
+    if (m) { cur = { heading: fbLabel(m[1]), paras: [m[2]] }; sections.push(cur); return; }
     if (!cur) { cur = { heading: '', paras: [] }; sections.push(cur); }
     cur.paras.push(l);
   });
