@@ -1397,6 +1397,17 @@ el.className = `mic-status ${cls}`;
 el.innerHTML = html;
 }
 
+// Feedback button can't be clicked until the spoken answer is in the box
+function setFbBtn(i, state) {
+const b = document.getElementById(`fb-btn-${i}`);
+if (!b) return;
+if (!b.dataset.orig) b.dataset.orig = b.innerHTML;
+if (!state) { b.innerHTML = b.dataset.orig; b.disabled = false; b.classList.remove('loading'); return; }
+b.disabled = true;
+if (state === 'transcribing') { b.classList.add('loading'); b.innerHTML = '<div class="fb-spinner"></div> Transcribing your answer…'; }
+else { b.classList.remove('loading'); b.innerHTML = '<div class="fb-spinner"></div> Finish recording first'; }
+}
+
 async function toggleMic(i) {
 if (micRec && micRec.state === 'recording') { const was = micIdx; stopMic(); if (was === i) return; }
 await startMic(i);
@@ -1424,6 +1435,7 @@ micRec.start(250);
 const btn = document.getElementById(`mic-btn-${i}`);
 btn.classList.add('recording');
 document.getElementById(`mic-label-${i}`).textContent = 'Stop';
+setFbBtn(i, 'recording');
 setMicStatus(i, micTimerMode === 'hide' ? 'Recording… the timer is hidden — you will see your time when you stop.' : 'Recording… speak your answer, then click Stop.');
 updateMicTimer(i);
 micTimerInt = setInterval(() => {
@@ -1463,6 +1475,7 @@ if (timerEl) timerEl.textContent = '';
 if (!btn) return;
 btn.classList.remove('recording');
 label.textContent = '🎤 Answer out loud';
+setFbBtn(i, null);
 if (micDiscard) { setMicStatus(i, ''); return; }
 if (secs < 2 || blob.size < 1000) { setMicStatus(i, 'We didn’t catch that — click Answer out loud and try again.'); return; }
 if (blob.size > 5 * 1024 * 1024) { setMicStatus(i, 'That recording is too long to transcribe. Try an answer under 2 minutes.'); return; }
@@ -1473,6 +1486,7 @@ else if (secs < 45) { lenHtml = `<strong>${micClock(secs)}</strong>On the short 
 else { lenHtml = `<strong>${micClock(secs)}</strong>Right in the zone — under two minutes.`; cls = 'zone'; }
 
 btn.disabled = true;
+setFbBtn(i, 'transcribing');
 setMicStatus(i, `${lenHtml} Turning your answer into text…`, cls);
 try {
 const audioBase64 = await micBlobToBase64(blob);
@@ -1496,6 +1510,7 @@ setMicStatus(i, `${lenHtml} Review the text above, fix anything that came throug
 setMicStatus(i, `${lenHtml} Couldn’t turn that into text (${escHtml(e.message)}). Please try again or type your answer.`, cls);
 } finally {
 btn.disabled = false;
+setFbBtn(i, null);
 }
 }
 
