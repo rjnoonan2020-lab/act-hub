@@ -97,21 +97,24 @@ async function callClaude(apiKey, messages, maxTokens = 1500) {
 
 async function generateQuestions(apiKey, jd, stage, focus, voice, resume = '') {
 
-  // ── INTERVIEWER VOICE MAP ─────────────────────────────────────────────────
-  // Who is asking shapes emphasis/tone independent of stage (how hard) and
-  // focus (what category). Keys match the data-val sent from the front end.
+  // ── INTERVIEW ROUND MAP ───────────────────────────────────────────────────
+  // The interview round (Screening Call → Second Interview → Final Interview)
+  // shapes emphasis/tone and how many questions are asked. Keys are kept from
+  // the original voice selector so saved sessions keep working:
+  //   screening = Screening Call, hiring-manager = Second Interview,
+  //   supervisor = Final Interview.
   const voiceMap = {
     screening: {
-      label: 'Screening Call (HR / Recruiter)',
+      label: 'Screening Call',
       instruction: 'This round is a SCREENING CALL with an HR recruiter or talent acquisition coordinator — not the hiring manager or supervisor. They are checking basic qualifications, verifying resume claims, gauging communication and interest, and covering logistics (availability, work authorization). They rarely probe deep technical or functional skill. Keep JD-Based and Technical questions at a surface level ("Have you worked with X?" rather than a deep scenario), and favor broad qualification, motivation, and logistics questions.',
     },
     'hiring-manager': {
-      label: 'HR / Hiring Manager',
-      instruction: 'This round is with HR or the HIRING MANAGER — the person who owns the role and will make the hire decision, though not necessarily the candidate\'s day-to-day supervisor. They probe culture fit, motivation, values alignment, and how the candidate works with others and handles ambiguity, alongside a real but not exhaustive review of core qualifications.',
+      label: 'Second Interview',
+      instruction: 'This round is the SECOND INTERVIEW — usually with the hiring manager who owns the role, sometimes with HR or a team member. The candidate has passed screening, so this round goes beyond basic fit. They probe culture fit, motivation, values alignment, and how the candidate works with others and handles ambiguity, alongside a real but not exhaustive review of core qualifications.',
     },
     supervisor: {
-      label: 'Direct Supervisor',
-      instruction: 'This round is with the candidate\'s DIRECT SUPERVISOR — the person they would report to day-to-day. This interviewer cares most about whether the candidate can actually do the job. Favor JD-Based and Technical questions that dig into specific tools, responsibilities, and day-to-day scenarios named in the job description, and behavioral questions about how the candidate has handled real work situations, over generic culture or motivation questions.',
+      label: 'Final Interview',
+      instruction: 'This round is the FINAL INTERVIEW — often with the person the candidate would report to day-to-day, sometimes a panel or senior leader. This round cares most about whether the candidate can actually do the job. Favor JD-Based and Technical questions that dig into specific tools, responsibilities, and day-to-day scenarios named in the job description, and behavioral questions about how the candidate has handled real work situations, over generic culture or motivation questions.',
     },
   };
   const activeVoice = voiceMap[voice] || voiceMap.screening;
@@ -178,23 +181,55 @@ async function generateQuestions(apiKey, jd, stage, focus, voice, resume = '') {
   const defaultFocus = ['jd-based questions', 'behavioral (STAR-format) questions'];
   const activeFocus = selectedFocus.length ? selectedFocus : defaultFocus;
 
-  const typeInstructions = activeFocus.map(f => focusMap[f]);
-  // "Tell Me About Yourself" is no longer a selectable focus type — it's reserved
-  // and always prepended below as question #1, outside this 8-question distribution.
-  const totalRequested = typeInstructions.reduce((sum, t) => sum + t.count, 0);
-  const scale = 8 / totalRequested;
+  // ── QUESTION COUNT PER ROUND ──────────────────────────────────────────────
+  // Later rounds are longer. Totals include "Tell me about yourself" (#1).
+  //   Screening Call 9 · Second Interview 12 · Final Interview 15
+  // Resume and JD get fixed blocks; the rest is shared across the other
+  // selected focus areas. Exclusion questions are capped at 2.
+  const roundPlan = {
+    screening:        { total: 9,  resume: 3, jd: 2 },
+    'hiring-manager': { total: 12, resume: 4, jd: 4 },
+    supervisor:       { total: 15, resume: 4, jd: 5 },
+  };
+  const plan = roundPlan[voice] || roundPlan.screening;
+  const T = plan.total - 1; // slots after "Tell me about yourself"
 
-  const typeBreakdown = typeInstructions.map(t => {
-    let count = Math.max(1, Math.round(t.count * scale));
-    // Hard cap: exclusion questions max 2, behavioral min 2 if only exclusion selected
-    if (t.type === 'Exclusion Question') count = Math.min(count, 2);
-    return `- ${count} x "${t.type}": ${t.instruction}`;
-  }).join('\n');
+  const alloc = {};
+  const hasResume = activeFocus.includes('resume-based questions');
+  const hasJd = activeFocus.includes('jd-based questions');
+  if (hasResume) alloc['resume-based questions'] = plan.resume;
+  // No resume: half of the resume block goes to JD questions, the rest to the other areas
+  if (hasJd) alloc['jd-based questions'] = plan.jd + (hasResume ? 0 : Math.ceil(plan.resume / 2));
+  // Extra slots go to Behavioral first, then Motivation, Career Story, Exclusion
+  const otherOrder = ['behavioral (STAR-format) questions', 'motivation and culture fit', 'career story and transitions', 'salary and offer negotiation', 'role-specific technical questions'];
+  const others = activeFocus.filter(f => f !== 'resume-based questions' && f !== 'jd-based questions')
+    .sort((a, b) => otherOrder.indexOf(a) - otherOrder.indexOf(b));
+  let remaining = T - Object.values(alloc).reduce((a, b) => a + b, 0);
+  const cap = f => (focusMap[f].type === 'Exclusion Question' ? 2 : Infinity);
+  const fillPool = others.length ? others : Object.keys(alloc);
+  let guard = 0;
+  while (remaining > 0 && guard++ < 100) {
+    let placed = false;
+    for (const f of fillPool) {
+      if (remaining <= 0) break;
+      if ((alloc[f] || 0) >= cap(f)) continue;
+      alloc[f] = (alloc[f] || 0) + 1;
+      remaining--;
+      placed = true;
+    }
+    if (!placed) {
+      // Everything capped (e.g. only Exclusion selected) — fill with Behavioral
+      const b = 'behavioral (STAR-format) questions';
+      alloc[b] = (alloc[b] || 0) + remaining;
+      remaining = 0;
+    }
+  }
 
-  // If only exclusion questions selected, add behavioral as fallback to fill slots
-  const hasNonExclusion = activeFocus.some(f => focusMap[f]?.type !== 'Exclusion Question');
-  const exclusionOnlyNote = !hasNonExclusion ? `
-- Fill remaining slots with Behavioral questions using STAR format ("Tell me about a time when...")` : '';
+  const typeBreakdown = Object.entries(alloc)
+    .filter(([, n]) => n > 0)
+    .map(([f, n]) => `- ${n} x "${focusMap[f].type}": ${focusMap[f].instruction}`)
+    .join('\n');
+  const exclusionOnlyNote = '';
 
   const prompt = `You are an expert career coach generating interview practice questions for a job candidate.
 
@@ -206,17 +241,18 @@ ${resume ? `
 CANDIDATE RESUME (use it so every question fits this person's real background; only "Resume" questions should name specific resume items):
 ${resume.slice(0, 5000)}
 ` : ''}
-INTERVIEWER PERSPECTIVE: ${activeVoice.instruction}
+INTERVIEW ROUND: ${activeVoice.instruction}
 
-Generate exactly 8 questions distributed as follows:
+Generate exactly ${T} questions distributed as follows:
 ${typeBreakdown}
 
 RULES:
-- Return ONLY a valid JSON array of exactly 8 objects. No preamble, no explanation, no markdown fences.
+- Return ONLY a valid JSON array of exactly ${T} objects. No preamble, no explanation, no markdown fences.
 - Each object must have exactly two keys:
   - "type": the question type label exactly as specified above
   - "question": the full question text
-- CALIBRATE TO BOTH THE CANDIDATE STAGE AND THE INTERVIEWER PERSPECTIVE ABOVE. This is a hard requirement, not a suggestion. The same focus-area categories should be asked differently depending on who's asking. For JD-Based and Technical questions especially: do not simply lift a senior-level JD requirement into a question — translate it to what THIS candidate could plausibly speak to.
+- Do NOT include "Tell me about yourself" — it is added separately.
+- CALIBRATE TO BOTH THE CANDIDATE STAGE AND THE INTERVIEW ROUND ABOVE. This is a hard requirement, not a suggestion. The same focus-area categories should be asked differently depending on who's asking. For JD-Based and Technical questions especially: do not simply lift a senior-level JD requirement into a question — translate it to what THIS candidate could plausibly speak to.
   - New grad (0-1 yrs): ask about coursework, class/personal projects, internships, or how they'd approach learning the skill — not production ownership or scaled systems.
   - Early career (1-5 yrs): ask about direct hands-on work and early individual contributions, not org-wide strategy or managing others.
   - Mid-career (5-11 yrs): ask about leadership of a project/team and measurable impact, appropriate to an individual contributor or first-line manager.
@@ -227,7 +263,7 @@ RULES:
 - Exclusion Question must use the exact question text specified above — do not change it
 - Do not repeat similar questions${exclusionOnlyNote}`;
 
-  const raw = await callClaude(apiKey, [{ role: 'user', content: prompt }], 1500);
+  const raw = await callClaude(apiKey, [{ role: 'user', content: prompt }], 3000);
   const cleaned = raw.replace(/```json\n?/gi, '').replace(/```\n?/gi, '').trim();
 
   let questions;
@@ -245,6 +281,33 @@ RULES:
   if (!Array.isArray(questions) || !questions.length) {
     throw new Error('No questions returned');
   }
+
+  // Keep only well-formed questions, drop any stray "Tell me about yourself"
+  questions = questions.filter(q => q && typeof q.question === 'string' && q.question.trim() &&
+    !/tell me about yourself/i.test(q.question));
+
+  // Guarantee the full count: if the model came back short, ask for the rest once
+  if (questions.length < T) {
+    const missing = T - questions.length;
+    const topUpPrompt = `${prompt}
+
+You already wrote these questions — do NOT repeat or closely paraphrase any of them:
+${questions.map(q => `- ${q.question}`).join('\n')}
+
+Now return ONLY a JSON array of exactly ${missing} additional question object(s) with the same "type"/"question" keys, choosing types from the distribution above that are under-represented.`;
+    try {
+      const raw2 = await callClaude(apiKey, [{ role: 'user', content: topUpPrompt }], 1200);
+      const c2 = raw2.replace(/```json\n?/gi, '').replace(/```\n?/gi, '').trim();
+      const m2 = c2.match(/\[[\s\S]*\]/);
+      const extra = JSON.parse(m2 ? m2[0] : c2);
+      if (Array.isArray(extra)) {
+        questions = questions.concat(extra.filter(q => q && typeof q.question === 'string' && q.question.trim()));
+      }
+    } catch (e) {
+      console.error('Top-up failed:', e.message);
+    }
+  }
+  questions = questions.slice(0, T);
 
   // Always guarantee "Tell Me About Yourself" as question #1 — it's no longer
   // something the model can generate (removed from focusMap above), so this
@@ -267,7 +330,7 @@ async function getFeedback(apiKey, question, answer, jd, questionType, voice, re
 
   const voiceLabelMap = {
     screening: 'an HR recruiter on a screening call',
-    'hiring-manager': 'the HR/hiring manager',
+    'hiring-manager': 'the hiring manager in a second interview',
     supervisor: 'their direct supervisor',
   };
   const voiceNote = voiceLabelMap[voice] ? `\n\nCONTEXT: The candidate was answering as if speaking with ${voiceLabelMap[voice]}.` : '';
