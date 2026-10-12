@@ -347,6 +347,18 @@
     color: var(--muted);
     margin-top: 1px;
   }
+  .q-num { position: relative; }
+  .q-tries { position: absolute; top: -7px; right: -14px; font-size: 0.56rem; font-weight: 700; color: var(--gold); background: var(--surface); padding: 0 2px; letter-spacing: 0.5px; }
+  .attempts { margin-top: 14px; }
+  .attempt { border: 1px solid var(--border); border-radius: 3px; background: rgba(255,255,255,0.02); margin-bottom: 8px; }
+  .attempt summary { cursor: pointer; padding: 9px 12px; font-size: 0.66rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--muted2); }
+  .attempt[open] summary { border-bottom: 1px solid var(--border); }
+  .attempt-answer { padding: 10px 12px 4px; font-size: 0.8rem; color: var(--muted2); line-height: 1.6; font-style: italic; white-space: pre-wrap; }
+  .attempt-feedback { padding: 6px 12px 12px; font-size: 0.8rem; color: var(--muted2); line-height: 1.65; }
+  .retry-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(201,162,39,0.15); }
+  .btn-retry { background: none; border: 1px solid rgba(255,255,255,0.2); border-radius: 3px; color: var(--white); font-family: 'DM Sans', sans-serif; font-size: 0.66rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 9px 16px; cursor: pointer; }
+  .btn-retry:hover { border-color: rgba(255,255,255,0.45); }
+  .retry-hint { font-size: 0.74rem; color: var(--muted); line-height: 1.4; }
   .q-card.has-answer .q-num {
     border-color: var(--gold);
     color: var(--gold);
@@ -1091,6 +1103,7 @@ updateSaveBar();
 currentQuestions = questions;
 if (typeof stopMic === 'function') stopMic(true);
 Object.keys(spokenAnswers).forEach(k => delete spokenAnswers[k]);
+Object.keys(attempts).forEach(k => delete attempts[k]);
     // Store immediately in sessionStorage for video page handoff
     const jd = document.getElementById('jd-input')?.value?.trim() || '';
     sessionStorage.setItem('fa_interview_questions', JSON.stringify(questions));
@@ -1109,7 +1122,7 @@ Object.keys(spokenAnswers).forEach(k => delete spokenAnswers[k]);
 
       card.innerHTML = `
         <div class="q-header" onclick="toggleCard(${i})">
-          <div class="q-num">${i + 1}</div>
+          <div class="q-num">${i + 1}<span class="q-tries" id="q-tries-${i}"></span></div>
           <div class="q-body">
             <div class="q-type-tag">${q.type || 'Interview Question'}</div>
             <div class="q-text">${escHtml(q.question)}</div>
@@ -1120,7 +1133,8 @@ Object.keys(spokenAnswers).forEach(k => delete spokenAnswers[k]);
           </svg>
         </div>
         <div class="q-answer-wrap">
-          <div class="answer-label">Your answer</div>
+          <div class="attempts" id="attempts-${i}"></div>
+          <div class="answer-label" id="answer-label-${i}">Your answer</div>
           <textarea class="answer-textarea" id="answer-${i}"
             placeholder="Type your answer here — or click Answer out loud and say it. Your words will appear here to review and edit."></textarea>
           <div class="mic-row">
@@ -1136,6 +1150,10 @@ Object.keys(spokenAnswers).forEach(k => delete spokenAnswers[k]);
           <div class="feedback-block" id="fb-block-${i}">
             <div class="feedback-label">Coaching notes</div>
             <div class="feedback-text" id="fb-text-${i}"></div>
+            <div class="retry-row">
+              <button class="btn-retry" onclick="tryAgain(${i})">↻ Try again</button>
+              <span class="retry-hint">Put the suggestion into your own words — the coach will compare it with this try.</span>
+            </div>
           </div>
         </div>
       `;
@@ -1175,7 +1193,7 @@ Object.keys(spokenAnswers).forEach(k => delete spokenAnswers[k]);
       const resp = await fetch('/.netlify/functions/interview-prep', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'feedback', question, questionType, answer, jd, voice: lastVoice, resume: getResumeText(), spoken: !!spokenAnswers[idx], durationSeconds: spokenAnswers[idx]?.durationSeconds || 0 })
+        body: JSON.stringify({ action: 'feedback', question, questionType, answer, jd, voice: lastVoice, resume: getResumeText(), spoken: !!spokenAnswers[idx], durationSeconds: spokenAnswers[idx]?.durationSeconds || 0, stage: getSelectedStage(), previous: (attempts[idx] || []).map(a => ({ answer: a.answer, feedback: a.feedback })) })
       });
 
       if (!resp.ok) {
@@ -1202,7 +1220,12 @@ if (currentSessionId) scheduleAutoSave(); else setSaveStatus('Not saved yet');
   // ── CAMERA HANDOFF ────────────────────────────────────────────────────────
   function goToVideoMode() {
     // Questions already stored in sessionStorage by renderQuestions()
-    try { sessionStorage.setItem('fa_interview_label', JSON.stringify(getLabelInputs())); } catch (e) {}
+    try {
+      sessionStorage.setItem('fa_interview_label', JSON.stringify(getLabelInputs()));
+      sessionStorage.setItem('fa_interview_voice', lastVoice || getSelectedVoice());
+      sessionStorage.setItem('fa_interview_stage', getSelectedStage());
+      sessionStorage.setItem('fa_interview_resume', getResumeText());
+    } catch (e) {}
     window.location.href = '/interview-video.html';
   }
 
@@ -1569,12 +1592,48 @@ return `
 }).join('');
 }
 
+// ── TRY AGAIN (several attempts per question) ─────────────────────────────
+// Earlier attempts stay visible (collapsed) above the answer box and are sent
+// to the coach so the next feedback compares with the last try.
+var attempts = {};
+
+function tryAgain(i) {
+const ta = document.getElementById(`answer-${i}`);
+const fb = document.getElementById(`fb-text-${i}`);
+const answer = ta.value.trim();
+const feedback = fb.dataset.raw || fb.textContent || '';
+if (!answer && !feedback) return;
+(attempts[i] = attempts[i] || []).push({ answer, feedback, durationSeconds: spokenAnswers[i]?.durationSeconds || 0 });
+ta.value = '';
+delete spokenAnswers[i];
+fb.innerHTML = '';
+fb.dataset.raw = '';
+document.getElementById(`fb-block-${i}`).classList.remove('visible');
+setMicStatus(i, '');
+renderAttempts(i);
+ta.focus();
+ta.scrollIntoView({ behavior: 'smooth', block: 'center' });
+scheduleAutoSave();
+}
+
+function renderAttempts(i) {
+const list = attempts[i] || [];
+const box = document.getElementById(`attempts-${i}`);
+if (!box) return;
+box.innerHTML = list.map((a, k) => `<details class="attempt"${k === list.length - 1 ? ' open' : ''}><summary>Attempt ${k + 1}${a.durationSeconds ? ` · ${micClock(a.durationSeconds)}` : ''} — your answer &amp; coaching</summary><div class="attempt-answer">${escHtml(a.answer || '(no answer)')}</div>${a.feedback ? `<div class="attempt-feedback">${feedbackHtml(a.feedback)}</div>` : ''}</details>`).join('');
+const label = document.getElementById(`answer-label-${i}`);
+if (label) label.textContent = list.length ? `Attempt ${list.length + 1} — your answer` : 'Your answer';
+const tries = document.getElementById(`q-tries-${i}`);
+if (tries) tries.textContent = list.length ? `×${list.length + 1}` : '';
+}
+
 function collectQuestions() {
 return currentQuestions.map((q, i) => ({
 question: q.question,
 type: q.type || '',
 answer: document.getElementById(`answer-${i}`)?.value?.trim() || '',
-feedback: document.getElementById(`fb-text-${i}`)?.dataset.raw || document.getElementById(`fb-text-${i}`)?.textContent || ''
+feedback: document.getElementById(`fb-text-${i}`)?.dataset.raw || document.getElementById(`fb-text-${i}`)?.textContent || '',
+attempts: (attempts[i] || []).map(a => ({ answer: a.answer, feedback: a.feedback, durationSeconds: a.durationSeconds || 0 }))
 }));
 }
 
@@ -1763,6 +1822,7 @@ currentMeta = { stage: s.stage, stageLabel: s.stage_label, voice: s.voice, voice
 const qs = Array.isArray(s.questions) ? s.questions : [];
 renderQuestions(qs.map(q => ({ question: q.question, type: q.type })), s.stage || '', s.voice_label || '');
 qs.forEach((q, i) => {
+if (Array.isArray(q.attempts) && q.attempts.length) { attempts[i] = q.attempts; renderAttempts(i); }
 if (q.answer) document.getElementById(`answer-${i}`).value = q.answer;
 if (q.feedback) {
 renderFeedback(document.getElementById(`fb-text-${i}`), q.feedback);

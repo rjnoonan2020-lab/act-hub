@@ -1683,7 +1683,11 @@ function renderFeedback(el, text) {
           question: question.question,
           questionType: question.type || '',
           jobDescription: sessionData.jobDescription.slice(0, 1000),
-          framing: lastFraming
+          framing: lastFraming,
+          durationSeconds: timerSeconds,
+          voice: sessionStorage.getItem('fa_interview_voice') || '',
+          stage: sessionStorage.getItem('fa_interview_stage') || '',
+          resume: sessionStorage.getItem('fa_interview_resume') || ''
         })
       });
 
