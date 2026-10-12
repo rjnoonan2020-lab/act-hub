@@ -641,6 +641,16 @@ color-scheme: dark;
   .mic-status.over strong { color: #ff5a6a; }
   .mic-status.short strong { color: var(--gold); }
   .mic-status.zone strong { color: #4caf50; }
+  .filler-line { margin: 6px 0; font-size: 0.78rem; }
+  .filler-line .filler-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin-right: 4px; }
+  .filler-line strong { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 1px; margin-right: 4px; }
+  .filler-line.good strong { color: #4caf50; }
+  .filler-line.ok strong { color: var(--gold); }
+  .filler-line.poor strong { color: #ff5a6a; }
+  .filler-list { color: var(--muted); }
+  .save-toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%) translateY(20px); background: #1f3a24; color: #fff; border: 1px solid #4caf50; border-radius: 4px; padding: 12px 20px; font-size: 0.85rem; z-index: 300; opacity: 0; pointer-events: none; transition: opacity 0.2s, transform 0.2s; max-width: calc(100% - 32px); }
+  .save-toast.visible { opacity: 1; transform: translateX(-50%) translateY(0); }
+  .save-toast.error { background: #3a1f22; border-color: var(--red); }
   .saved-section-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
   .video-detail { display: none; margin: 4px 0 14px; padding: 14px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; }
   .video-detail.visible { display: block; }
@@ -910,7 +920,7 @@ padding: 24px;
         <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2" ry="2"/></svg>
         Practice on camera
       </button>
-      <button class="btn-save" onclick="saveSession()" style="padding:16px 28px;">Save session</button>
+      <button class="btn-save" id="btn-save-bottom" onclick="saveSession()" style="padding:16px 28px;">Save session</button>
 <button class="btn-reset" onclick="resetTool()">← New job description</button>
     </div>
 
@@ -1193,7 +1203,7 @@ Object.keys(attempts).forEach(k => delete attempts[k]);
       const resp = await fetch('/.netlify/functions/interview-prep', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'feedback', question, questionType, answer, jd, voice: lastVoice, resume: getResumeText(), spoken: !!spokenAnswers[idx], durationSeconds: spokenAnswers[idx]?.durationSeconds || 0, stage: getSelectedStage(), previous: (attempts[idx] || []).map(a => ({ answer: a.answer, feedback: a.feedback })) })
+        body: JSON.stringify({ action: 'feedback', question, questionType, answer, jd, voice: lastVoice, resume: getResumeText(), spoken: !!spokenAnswers[idx], durationSeconds: spokenAnswers[idx]?.durationSeconds || 0, fillers: spokenAnswers[idx]?.fillers || '', stage: getSelectedStage(), previous: (attempts[idx] || []).map(a => ({ answer: a.answer, feedback: a.feedback })) })
       });
 
       if (!resp.ok) {
@@ -1423,6 +1433,29 @@ el.className = `mic-status ${cls}`;
 el.innerHTML = html;
 }
 
+// ── FILLER WORDS (same list and thresholds as the camera page) ──
+const FILLER_WORDS = ['um', 'umm', 'uh', 'uhh', 'ah', 'er', 'hmm', 'like', 'you know', 'basically', 'literally',
+'actually', 'right', 'so', 'kind of', 'sort of', 'i mean', 'you see'];
+function countFillers(text) {
+const lower = String(text || '').toLowerCase();
+const found = [];
+let count = 0;
+FILLER_WORDS.forEach(w => {
+const m = lower.match(new RegExp(`\\b${w}\\b`, 'gi'));
+if (m && m.length) { count += m.length; found.push({ word: w, count: m.length }); }
+});
+found.sort((a, b) => b.count - a.count);
+return { count, found, summary: found.map(f => `${f.word} ×${f.count}`).join(', ') };
+}
+function fillerScore(count, secs) {
+const perMin = secs ? (count / secs) * 60 : 0;
+if (count === 0) return { css: 'good', note: '— excellent, no filler words detected.' };
+if (perMin < 3) return { css: 'good', note: '— minimal, well done.' };
+if (perMin < 6) return { css: 'ok', note: '— slightly elevated.' };
+if (perMin < 10) return { css: 'poor', note: '— try pausing silently instead.' };
+return { css: 'poor', note: '— focus on deliberate pauses.' };
+}
+
 // Feedback button can't be clicked until the spoken answer is in the box
 function setFbBtn(i, state) {
 const b = document.getElementById(`fb-btn-${i}`);
@@ -1530,8 +1563,11 @@ if (!transcript || !transcript.trim()) throw new Error('No speech detected');
 const ta = document.getElementById(`answer-${i}`);
 ta.value = ta.value.trim() ? `${ta.value.trim()}\n\n${transcript.trim()}` : transcript.trim();
 ta.dispatchEvent(new Event('input', { bubbles: true }));
-spokenAnswers[i] = { durationSeconds: secs };
-setMicStatus(i, `${lenHtml} Review the text above, fix anything that came through wrong, then click Get coaching feedback.`, cls);
+const fill = countFillers(transcript);
+spokenAnswers[i] = { durationSeconds: secs, fillers: fill.summary, fillerCount: fill.count };
+const fs = fillerScore(fill.count, secs);
+const fillHtml = `<div class="filler-line ${fs.css}"><span class="filler-label">Filler words</span> <strong>${fill.count === 0 ? 'None' : fill.count}</strong> ${escHtml(fs.note)}${fill.found.length ? ` <span class="filler-list">(${escHtml(fill.found.slice(0, 4).map(f => `“${f.word}” ×${f.count}`).join(', '))})</span>` : ''}</div>`;
+setMicStatus(i, `${lenHtml}${fillHtml}Review the text above, fix anything that came through wrong, then click Get coaching feedback.`, cls);
 } catch (e) {
 setMicStatus(i, `${lenHtml} Couldn’t turn that into text (${escHtml(e.message)}). Please try again or type your answer.`, cls);
 } finally {
@@ -1606,7 +1642,7 @@ const fb = document.getElementById(`fb-text-${i}`);
 const answer = ta.value.trim();
 const feedback = fb.dataset.raw || fb.textContent || '';
 if (!answer && !feedback) return;
-(attempts[i] = attempts[i] || []).push({ answer, feedback, durationSeconds: spokenAnswers[i]?.durationSeconds || 0 });
+(attempts[i] = attempts[i] || []).push({ answer, feedback, durationSeconds: spokenAnswers[i]?.durationSeconds || 0, fillerCount: spokenAnswers[i]?.fillerCount });
 ta.value = '';
 delete spokenAnswers[i];
 fb.innerHTML = '';
@@ -1623,7 +1659,7 @@ function renderAttempts(i) {
 const list = attempts[i] || [];
 const box = document.getElementById(`attempts-${i}`);
 if (!box) return;
-box.innerHTML = list.map((a, k) => `<details class="attempt"${k === list.length - 1 ? ' open' : ''}><summary>Attempt ${k + 1}${a.durationSeconds ? ` · ${micClock(a.durationSeconds)}` : ''} — your answer &amp; coaching</summary><div class="attempt-answer">${escHtml(a.answer || '(no answer)')}</div>${a.feedback ? `<div class="attempt-feedback">${feedbackHtml(a.feedback)}</div>` : ''}</details>`).join('');
+box.innerHTML = list.map((a, k) => `<details class="attempt"${k === list.length - 1 ? ' open' : ''}><summary>Attempt ${k + 1}${a.durationSeconds ? ` · ${micClock(a.durationSeconds)}` : ''}${typeof a.fillerCount === 'number' ? ` · ${a.fillerCount} filler word${a.fillerCount === 1 ? '' : 's'}` : ''} — your answer &amp; coaching</summary><div class="attempt-answer">${escHtml(a.answer || '(no answer)')}</div>${a.feedback ? `<div class="attempt-feedback">${feedbackHtml(a.feedback)}</div>` : ''}</details>`).join('');
 const label = document.getElementById(`answer-label-${i}`);
 if (label) label.textContent = list.length ? `Attempt ${list.length + 1} — your answer` : 'Your answer';
 const tries = document.getElementById(`q-tries-${i}`);
@@ -1636,7 +1672,7 @@ question: q.question,
 type: q.type || '',
 answer: document.getElementById(`answer-${i}`)?.value?.trim() || '',
 feedback: document.getElementById(`fb-text-${i}`)?.dataset.raw || document.getElementById(`fb-text-${i}`)?.textContent || '',
-attempts: (attempts[i] || []).map(a => ({ answer: a.answer, feedback: a.feedback, durationSeconds: a.durationSeconds || 0 }))
+attempts: (attempts[i] || []).map(a => ({ answer: a.answer, feedback: a.feedback, durationSeconds: a.durationSeconds || 0, fillerCount: a.fillerCount }))
 }));
 }
 
@@ -1677,6 +1713,23 @@ btn.textContent = 'Save session';
 }
 }
 
+// Visible confirmation wherever the Save button was clicked
+function setBottomSave(text, busy) {
+const b = document.getElementById('btn-save-bottom');
+if (!b) return;
+b.textContent = text;
+b.disabled = !!busy;
+}
+function showToast(msg, isError) {
+let t = document.getElementById('save-toast');
+if (!t) { t = document.createElement('div'); t.id = 'save-toast'; t.className = 'save-toast'; document.body.appendChild(t); }
+t.textContent = msg;
+t.classList.toggle('error', !!isError);
+t.classList.add('visible');
+clearTimeout(t._h);
+t._h = setTimeout(() => t.classList.remove('visible'), 3200);
+}
+
 async function saveSession(opts = {}) {
 const label = getLabelInputs();
 if (!label.company_name) {
@@ -1699,6 +1752,7 @@ updated_at: new Date().toISOString()
 };
 btn.disabled = true;
 setSaveStatus('Saving…');
+if (!opts.silent) setBottomSave('Saving…', true);
 let result;
 if (currentSessionId) {
 result = await sb.from('saved_prep_sessions').update(payload).eq('id', currentSessionId).select('id').single();
@@ -1709,10 +1763,12 @@ btn.disabled = false;
 if (result.error) {
 console.error('Save error:', result.error);
 setSaveStatus('Couldn’t save — please try again.');
+if (!opts.silent) { setBottomSave('Save session', false); showToast('Couldn’t save — please try again.', true); }
 return;
 }
 currentSessionId = result.data.id;
 setSaveStatus(`Saved ${new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}`);
+if (!opts.silent) { setBottomSave('Saved ✓', false); setTimeout(() => setBottomSave('Save changes', false), 2500); showToast('Session saved ✓ — find it anytime under My saved sessions'); }
 updateSaveBar();
 loadSavedSessions();
 }
