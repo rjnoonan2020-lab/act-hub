@@ -1,3 +1,5 @@
 [functions]
   [functions.interview-video]
     timeout = 26
+  [functions.interview-prep]
+    timeout = 26

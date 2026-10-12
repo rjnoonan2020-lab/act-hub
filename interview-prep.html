@@ -735,7 +735,7 @@ padding: 24px;
 
   <div class="page-eyebrow">First Act Advising</div>
   <h1 class="page-title">Prepare for your interview.<br>On your terms.</h1>
-  <p class="page-desc">Paste a real job description below. You'll get 8–10 targeted interview questions built around that specific role — then work through them with AI coaching feedback on each answer.</p>
+  <p class="page-desc">Paste a real job description below. You'll get 9 to 15 targeted interview questions, depending on the interview round, built around that specific role — then work through them with AI coaching feedback on each answer.</p>
 
   <!-- INPUT FORM -->
   <div id="input-section">
@@ -791,13 +791,14 @@ padding: 24px;
     </div>
 
     <div class="step">
-      <div class="step-label"><span class="step-num">5</span> Who's asking</div>
-      <div class="step-title">Who will be interviewing you?</div>
+      <div class="step-label"><span class="step-num">5</span> Interview stage</div>
+      <div class="step-title">Which round are you preparing for?</div>
       <div class="role-chips" id="voice-chips">
         <button class="chip active" data-val="screening" onclick="selectChip(this, 'voice-chips')">Screening Call</button>
-        <button class="chip" data-val="hiring-manager" onclick="selectChip(this, 'voice-chips')">HR / Hiring Manager</button>
-        <button class="chip" data-val="supervisor" onclick="selectChip(this, 'voice-chips')">Direct Supervisor</button>
+        <button class="chip" data-val="hiring-manager" onclick="selectChip(this, 'voice-chips')">Second Interview</button>
+        <button class="chip" data-val="supervisor" onclick="selectChip(this, 'voice-chips')">Final Interview</button>
       </div>
+      <div class="focus-hint" id="round-hint" style="margin-top:4px;"></div>
     </div>
 
     <div class="step">
@@ -932,12 +933,21 @@ loadSavedSessions();
   // won't touch these, but they stay fully editable for anyone who wants to
   // drill one specific area (e.g. re-checking only Career Story).
   const voiceFocusDefaults = {
-    screening: ['career story and transitions', 'salary and offer negotiation', 'motivation and culture fit'],
+    screening: ['career story and transitions', 'jd-based questions', 'salary and offer negotiation', 'motivation and culture fit'],
     'hiring-manager': ['career story and transitions', 'jd-based questions', 'motivation and culture fit', 'behavioral (STAR-format) questions'],
     supervisor: ['career story and transitions', 'jd-based questions', 'behavioral (STAR-format) questions'],
   };
 
+  // Who they'll likely meet + length, shown under the round chips
+  const roundHints = {
+    screening: 'Usually a recruiter or HR · 9 questions, about 15–20 minutes',
+    'hiring-manager': 'Often the hiring manager · 12 questions, about 25–30 minutes',
+    supervisor: 'Often your future boss, sometimes a panel · 15 questions, about 35–40 minutes',
+  };
+
   function applyVoiceFocusDefaults(voice, voiceLabel) {
+    const rh = document.getElementById('round-hint');
+    if (rh) rh.textContent = roundHints[voice] || roundHints.screening;
     const defaults = voiceFocusDefaults[voice] || voiceFocusDefaults.screening;
     document.querySelectorAll('.focus-item').forEach(label => {
       const checkbox = label.querySelector('input[type="checkbox"]');
