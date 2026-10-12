@@ -169,6 +169,36 @@
     transition: width 0.4s ease;
   }
 
+  /* ── QUESTION LIST (one-at-a-time mode) ── */
+  .q-list {
+    max-height: 340px;
+    overflow-y: auto;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    background: var(--surface);
+  }
+  .q-list-item {
+    display: flex;
+    gap: 12px;
+    width: 100%;
+    text-align: left;
+    background: none;
+    border: none;
+    border-bottom: 1px solid var(--border);
+    color: var(--muted2);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.86rem;
+    line-height: 1.5;
+    padding: 12px 16px;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+  }
+  .q-list-item:last-child { border-bottom: none; }
+  .q-list-item:hover { background: rgba(255,255,255,0.03); color: var(--white); }
+  .q-list-item.active { background: rgba(204,51,68,0.08); color: var(--white); box-shadow: inset 3px 0 0 var(--red); }
+  .q-list-num { flex-shrink: 0; min-width: 20px; color: var(--muted); font-weight: 700; }
+  .q-list-type { display: block; font-size: 0.6rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; color: var(--red); margin-bottom: 2px; }
+
   /* ── QUESTION DISPLAY ── */
   .question-card {
     background: var(--surface);
@@ -859,9 +889,12 @@
         padding: 13px 16px;
         outline: none;
         cursor: pointer;
+        display: none;
       ">
         <option value="">— Select a question —</option>
       </select>
+      <!-- Full-text question list (replaces the dropdown, which cut long questions off) -->
+      <div class="q-list" id="q-list"></div>
     </div>
 
     <!-- Current question -->
@@ -1215,9 +1248,41 @@
     questions.forEach((q, i) => {
       const opt = document.createElement('option');
       opt.value = i;
-      opt.textContent = `${i + 1}. ${q.question.slice(0, 70)}${q.question.length > 70 ? '…' : ''}`;
+      opt.textContent = `${i + 1}. ${q.question}`;
       sel.appendChild(opt);
     });
+    // Full-text, wrapping list so long questions are never cut off
+    const list = document.getElementById('q-list');
+    if (list) {
+      list.innerHTML = '';
+      questions.forEach((q, i) => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'q-list-item';
+        btn.dataset.idx = i;
+        const num = document.createElement('span');
+        num.className = 'q-list-num';
+        num.textContent = `${i + 1}.`;
+        const body = document.createElement('span');
+        const type = document.createElement('span');
+        type.className = 'q-list-type';
+        type.textContent = q.type || 'Interview Question';
+        body.appendChild(type);
+        body.appendChild(document.createTextNode(q.question));
+        btn.appendChild(num);
+        btn.appendChild(body);
+        btn.onclick = () => {
+          document.getElementById('q-select').value = String(i);
+          selectQuestion(String(i));
+          document.getElementById('question-card').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+        list.appendChild(btn);
+      });
+    }
+  }
+
+  function markActiveQuestion(idx) {
+    document.querySelectorAll('.q-list-item').forEach(b => b.classList.toggle('active', Number(b.dataset.idx) === idx));
   }
 
   function selectQuestion(idx) {
@@ -1232,6 +1297,7 @@
 
     document.getElementById('q-type').textContent = q.type || 'Interview Question';
     document.getElementById('q-text').textContent = q.question;
+    markActiveQuestion(idx);
     document.getElementById('question-card').style.display = 'block';
 
     // Update nav for full mock mode
@@ -1267,7 +1333,7 @@
     if (m === 'full') {
       currentQIdx = 0;
       showQuestion(0);
-      document.getElementById('q-select').value = '';
+      document.getElementById('q-select').value = ''; markActiveQuestion(-1);
     } else {
       document.getElementById('question-card').style.display = 'none';
       resetRecordingState();
@@ -1713,7 +1779,7 @@ function renderFeedback(el, text) {
     if (mode === 'full') showQuestion(0);
     else {
       document.getElementById('question-card').style.display = 'none';
-      document.getElementById('q-select').value = '';
+      document.getElementById('q-select').value = ''; markActiveQuestion(-1);
     }
   }
 
