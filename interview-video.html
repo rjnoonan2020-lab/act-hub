@@ -1047,7 +1047,7 @@
     <!-- Privacy notice -->
     <div style="font-size:0.72rem;color:var(--muted);letter-spacing:0.5px;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
       <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;opacity:0.6;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      Your practice sessions are saved privately and reviewed only by your coach. Nothing is shared until you click Save Session.
+      Your practice sessions are saved privately and reviewed only by your coach. Nothing is shared until you click Save Session. Videos are kept for 45 days; your transcripts and coaching notes stay in My saved sessions.
     </div>
 
     <!-- Controls -->
@@ -1117,7 +1117,7 @@
     <div class="feedback-panel" id="feedback-panel">
       <div class="feedback-header">
         <div class="feedback-dot"></div>
-        <div class="feedback-title">Coaching Feedback</div>
+        <div class="feedback-title" id="feedback-title">Coaching Feedback</div>
       </div>
       <div class="transcript-block">
         <div class="block-label">What you said</div>
@@ -1396,7 +1396,9 @@
       ? 'video/webm'
       : 'video/mp4';
 
-    mediaRecorder = new MediaRecorder(stream, { mimeType });
+    // ~600 kbps video keeps a 2-minute answer around 9–10 MB (clear enough for a
+    // practice video, and well under the storage plan's 50 MB per-file limit)
+    mediaRecorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 600000, audioBitsPerSecond: 64000 });
     mediaRecorder.ondataavailable = (e) => { if (e.data.size > 0) recordedChunks.push(e.data); };
     mediaRecorder.onstop = onRecordingStop;
     mediaRecorder.start(100);
@@ -1673,6 +1675,12 @@ function renderFeedback(el, text) {
       const base64 = await blobToBase64(blobToSend);
       const question = questions[currentQIdx];
 
+      // Earlier takes of this question (Retake): the coach compares with the last one.
+      // Re-analyzing the same recording replaces its entry instead of adding a take.
+      const reanalyze = !!recordedBlob && recordedBlob === lastAnalyzedBlob;
+      const sameQ = sessionData.recordings.map((r, k) => ({ r, k })).filter(x => x.r.questionIdx === currentQIdx);
+      const priorTakes = (reanalyze ? sameQ.slice(0, -1) : sameQ).map(x => ({ answer: x.r.transcript || '', feedback: x.r.feedback || '' }));
+
       const resp = await fetch('/.netlify/functions/interview-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -1687,7 +1695,8 @@ function renderFeedback(el, text) {
           durationSeconds: timerSeconds,
           voice: sessionStorage.getItem('fa_interview_voice') || '',
           stage: sessionStorage.getItem('fa_interview_stage') || '',
-          resume: sessionStorage.getItem('fa_interview_resume') || ''
+          resume: sessionStorage.getItem('fa_interview_resume') || '',
+          previous: priorTakes
         })
       });
 
@@ -1719,9 +1728,9 @@ function renderFeedback(el, text) {
         document.getElementById('meter-eye').textContent = fillerResult.count === 0 ? 'NONE' : String(fillerResult.count);
       }
 
-      // Store in session (keep this answer's video so every answer is uploaded on save)
-      recordingBlobs.push(recordedBlob);
-      sessionData.recordings.push({
+      // Store in session. Each take is kept (transcript + coaching) for the comparison;
+      // only the latest take of each question has its video uploaded on save.
+      const entry = {
         questionIdx: currentQIdx,
         questionText: question.question,
         questionType: question.type,
@@ -1729,8 +1738,20 @@ function renderFeedback(el, text) {
         feedback,
         durationSeconds: timerSeconds,
         framing: lastFraming,
+        take: priorTakes.length + 1,
         recordedAt: new Date().toISOString()
-      });
+      };
+      if (reanalyze && sameQ.length) {
+        const k = sameQ[sameQ.length - 1].k;
+        sessionData.recordings[k] = entry;
+        recordingBlobs[k] = recordedBlob;
+      } else {
+        recordingBlobs.push(recordedBlob);
+        sessionData.recordings.push(entry);
+      }
+      lastAnalyzedBlob = recordedBlob;
+      const ft = document.getElementById('feedback-title');
+      if (ft) ft.textContent = entry.take > 1 ? `Coaching Feedback · Take ${entry.take}` : 'Coaching Feedback';
 
       document.getElementById('btn-save').disabled = false;
       setStatus('green', 'Feedback ready — save your session when done');
@@ -1758,7 +1779,9 @@ function renderFeedback(el, text) {
       // Upload each answer's video to Supabase Storage
       const uploaded = [];
       for (let i = 0; i < sessionData.recordings.length; i++) {
-        const blob = recordingBlobs[i];
+        // Only the latest take of each question keeps its video (saves storage)
+        const isLatestTake = !sessionData.recordings.some((r, j) => j > i && r.questionIdx === sessionData.recordings[i].questionIdx);
+        const blob = isLatestTake ? recordingBlobs[i] : null;
         let videoUrl = null, videoPath = null;
         if (blob) {
           const fileName = `${currentUser.id}/${Date.now()}-q${sessionData.recordings[i].questionIdx}-${i}.webm`;
@@ -1773,7 +1796,7 @@ function renderFeedback(el, text) {
             console.error('Video upload error:', error);
           }
         }
-        uploaded.push({ ...sessionData.recordings[i], videoUrl, videoPath });
+        uploaded.push({ ...sessionData.recordings[i], videoUrl, videoPath, videoExpiresAt: videoPath ? new Date(Date.now() + 45 * 24 * 60 * 60 * 1000).toISOString() : null });
       }
       let label = {};
       try { label = JSON.parse(sessionStorage.getItem('fa_interview_label') || '{}'); } catch (e) {}
@@ -2142,6 +2165,7 @@ function renderFeedback(el, text) {
   let framingWasIn = false;
   let lastFraming = null;
   let recordingBlobs = [];
+  let lastAnalyzedBlob = null; // so Re-analyze doesn't count as a new take
 
   function startFramingTracking() {
     stopFramingTracking();

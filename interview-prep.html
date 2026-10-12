@@ -1355,6 +1355,9 @@ if (!s) return;
 const recs = Array.isArray(s.recordings) ? s.recordings : [];
 box.innerHTML = recs.map((r, i) => {
 const bits = [];
+if (r.take > 1) bits.push(`Take ${r.take}`);
+if (r.videoRemoved) bits.push('Video removed after 45 days');
+else if (r.videoExpiresAt) bits.push(`Video kept until ${fmtDate(r.videoExpiresAt)}`);
 if (r.durationSeconds) bits.push(`Answer length ${fmtLen(r.durationSeconds)}${r.durationSeconds > 120 ? ' (over 2:00)' : ''}`);
 if (r.framing && typeof r.framing.pctInFrame === 'number') bits.push(`In frame ${r.framing.pctInFrame}%${r.framing.exits ? ` · left frame ${r.framing.exits}×` : ''}`);
 return `

@@ -3,3 +3,6 @@
     timeout = 26
   [functions.interview-prep]
     timeout = 26
+  # Daily: delete practice videos older than 45 days (keeps transcripts/feedback)
+  [functions.cleanup-videos]
+    schedule = "@daily"

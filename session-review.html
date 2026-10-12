@@ -600,6 +600,7 @@
             <div class="recording-entry">
               <div class="rec-q-type">${escHtml(rec.questionType || 'Question')}</div>
               <div class="rec-q-text">${escHtml(rec.questionText || '')}</div>
+              ${rec.take > 1 ? `<div class="rec-label">Take ${rec.take}</div>` : ''}${rec.videoRemoved ? '<div class="rec-label">Video removed after 45 days</div>' : ''}
               ${rec.durationSeconds ? `<div class="rec-label">Answer length: ${Math.floor(rec.durationSeconds / 60)}:${String(rec.durationSeconds % 60).padStart(2, '0')}${rec.durationSeconds > 120 ? ' (over 2:00)' : ''}</div>` : ''}
               ${rec.framing && typeof rec.framing.pctInFrame === 'number' ? `<div class="rec-label">Framing: in frame ${rec.framing.pctInFrame}%${rec.framing.exits ? ` · left frame ${rec.framing.exits}×` : ''}</div>` : ''}
               ${(rec.videoPath || rec.videoUrl) ? `<video class="rec-video" controls preload="none" playsinline data-path="${escHtml(rec.videoPath || '')}" data-url="${escHtml(rec.videoUrl || '')}" style="display:none;width:100%;max-height:280px;background:#000;border-radius:2px;margin:6px 0 10px;"></video>` : ''}
