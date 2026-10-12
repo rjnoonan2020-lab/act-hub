@@ -269,6 +269,18 @@
   }
   .portal-footer a:hover { color: #555; }
 
+  /* Legal notice on sign-in + privacy box on dashboard */
+  .legal-note { margin-top: 18px; font-size: 0.74rem; line-height: 1.6; color: #777; text-align: center; }
+  .legal-note a, .privacy-box a { color: #11536b; text-decoration: underline; }
+  .privacy-box { margin-top: 24px; border: 1px solid rgba(0,0,0,0.1); border-radius: 3px; padding: 18px 20px; background: #fafaf8; }
+  .privacy-box-title { font-size: 0.68rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: #888; margin-bottom: 12px; }
+  .terms-update { background: rgba(201,162,39,0.1); border: 1px solid rgba(201,162,39,0.35); border-radius: 3px; padding: 12px 14px; font-size: 0.78rem; line-height: 1.55; color: #444; margin-bottom: 14px; }
+  .terms-update button { margin-top: 8px; background: #1a1a1a; color: #fff; border: none; border-radius: 2px; font-family: 'DM Sans', sans-serif; font-size: 0.68rem; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase; padding: 8px 14px; cursor: pointer; }
+  .research-row { display: flex; gap: 12px; align-items: flex-start; cursor: pointer; text-transform: none; letter-spacing: 0; font-weight: 400; color: #333; font-size: 0.8rem; line-height: 1.55; margin: 0; }
+  .research-row input { margin-top: 3px; width: 16px; height: 16px; flex-shrink: 0; accent-color: #11536b; cursor: pointer; }
+  .research-row strong { display: block; color: #1a1a1a; margin-bottom: 2px; }
+  .research-status { font-size: 0.72rem; color: #888; margin-top: 8px; min-height: 1em; }
+
   @media (max-width: 480px) {
     .card { padding: 32px 24px; }
   }
@@ -318,6 +330,8 @@
     </button>
 
     <span class="forgot-link" onclick="showView('reset')">Forgot your password?</span>
+
+    <p class="legal-note">By signing in, you agree to our <a href="/terms" target="_blank">Terms and Conditions</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.</p>
   </div>
 
   <!-- RESET VIEW -->
@@ -424,6 +438,19 @@
       </a>
     </div>
 
+    <div class="privacy-box" id="privacy-box">
+      <div class="privacy-box-title">Your privacy</div>
+      <div class="terms-update" id="terms-update" style="display:none;">
+        We've updated our <a href="/terms" target="_blank">Terms and Conditions</a> and <a href="/privacy" target="_blank">Privacy Policy</a> (October 12, 2026). By continuing to use the hub, you agree to them.
+        <br><button type="button" onclick="acknowledgeTerms()">Got it</button>
+      </div>
+      <label class="research-row" for="research-opt-in">
+        <input type="checkbox" id="research-opt-in" onchange="saveResearchChoice(this.checked)">
+        <span><strong>Help improve our coaching tools (optional)</strong>Allow Third Act Advisors to use my practice sessions, with my name, employers, and other identifying details removed, to improve its coaching materials and tools. I can turn this off at any time. <a href="/privacy" target="_blank">Learn more</a></span>
+      </label>
+      <div class="research-status" id="research-status"></div>
+    </div>
+
     <button onclick="handleSignOut()" style="
       margin-top: 28px;
       background: none;
@@ -450,6 +477,10 @@
 
 <div class="portal-footer">
   <a href="/">← Back to hub.thirdactadvisors.com</a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="/privacy">Privacy Policy</a>
+  &nbsp;&nbsp;·&nbsp;&nbsp;
+  <a href="/terms">Terms and Conditions</a>
   &nbsp;&nbsp;·&nbsp;&nbsp;
   © 2026 Third Act Advisors, LLC
 </div>
@@ -524,6 +555,7 @@
       return;
     }
 
+    await recordTermsAcceptance(data.user);
     showPortal(data.user);
   }
 
@@ -559,6 +591,69 @@
     showView('login');
   }
 
+  // ── CONSENT (Terms + optional research use) ───────────────────────────────
+  // Versions are stored with each choice so we can show exactly what a client
+  // agreed to. Change these when the Terms/Privacy or the research wording change.
+  const TERMS_VERSION = '2026-10-12';
+  const RESEARCH_WORDING_VERSION = 'research-v1-2026-10-12';
+  const RESEARCH_WORDING = 'Help improve our coaching tools (optional). Allow Third Act Advisors to use my practice sessions, with my name, employers, and other identifying details removed, to improve its coaching materials and tools. I can turn this off at any time.';
+  let consentUser = null;
+
+  async function logConsent(user, event, value, version) {
+    try {
+      await sb.from('consent_events').insert({ user_id: user.id, email: user.email, event, value, wording_version: version });
+    } catch (e) { console.error('consent log failed', e); }
+  }
+
+  async function recordTermsAcceptance(user) {
+    const now = new Date().toISOString();
+    const { error } = await sb.from('client_consents').upsert(
+      { user_id: user.id, email: user.email, terms_version: TERMS_VERSION, terms_accepted_at: now, updated_at: now },
+      { onConflict: 'user_id' });
+    if (error) { console.error('terms record failed', error); return false; }
+    await logConsent(user, 'terms_accepted', true, TERMS_VERSION);
+    return true;
+  }
+
+  async function loadConsent(user) {
+    consentUser = user;
+    const box = document.getElementById('research-opt-in');
+    const { data, error } = await sb.from('client_consents').select('*').eq('user_id', user.id).maybeSingle();
+    if (error) { console.error('consent load failed', error); return; }
+    box.checked = !!(data && data.research_opt_in);
+    const st = document.getElementById('research-status');
+    st.textContent = data && data.research_updated_at
+      ? (data.research_opt_in ? 'On since ' : 'Off since ') + new Date(data.research_updated_at).toLocaleDateString()
+      : '';
+    document.getElementById('terms-update').style.display =
+      (!data || data.terms_version !== TERMS_VERSION) ? 'block' : 'none';
+  }
+
+  async function acknowledgeTerms() {
+    if (!consentUser) return;
+    if (await recordTermsAcceptance(consentUser)) document.getElementById('terms-update').style.display = 'none';
+  }
+
+  async function saveResearchChoice(on) {
+    if (!consentUser) return;
+    const st = document.getElementById('research-status');
+    st.textContent = 'Saving…';
+    const now = new Date().toISOString();
+    const { error } = await sb.from('client_consents').upsert(
+      { user_id: consentUser.id, email: consentUser.email, research_opt_in: on,
+        research_wording_version: RESEARCH_WORDING_VERSION, research_wording: RESEARCH_WORDING,
+        research_updated_at: now, updated_at: now },
+      { onConflict: 'user_id' });
+    if (error) {
+      console.error('research save failed', error);
+      document.getElementById('research-opt-in').checked = !on;
+      st.textContent = "Couldn't save your choice. Please try again.";
+      return;
+    }
+    await logConsent(consentUser, on ? 'research_opt_in' : 'research_opt_out', on, RESEARCH_WORDING_VERSION);
+    st.textContent = on ? 'Saved. Thank you — you can turn this off anytime.' : 'Saved. Your sessions will not be used for research.';
+  }
+
   // ── PORTAL DISPLAY ─────────────────────────────────────────────────────────
   function showPortal(user) {
     const nameEl = document.getElementById('user-name');
@@ -570,6 +665,7 @@
       document.getElementById('coach-link').style.display = 'block';
     }
     showView('portal');
+    loadConsent(user);
   }
 
   // ── SESSION CHECK ON LOAD ──────────────────────────────────────────────────
