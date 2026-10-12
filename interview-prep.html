@@ -611,6 +611,24 @@ color-scheme: dark;
 }
 .saved-tools input { flex: 1; min-width: 180px; }
 .saved-empty { font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+  /* Answer out loud (mic) */
+  .mic-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin: -4px 0 8px; }
+  .btn-mic { display: inline-flex; align-items: center; gap: 8px; background: none; border: 1px solid rgba(255,255,255,0.18); border-radius: 3px; color: var(--white); font-family: 'DM Sans', sans-serif; font-size: 0.68rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; padding: 9px 16px; cursor: pointer; transition: all 0.15s; }
+  .btn-mic:hover:not(:disabled) { border-color: rgba(255,255,255,0.4); }
+  .btn-mic:disabled { opacity: 0.45; cursor: not-allowed; }
+  .btn-mic.recording { border-color: var(--red); color: #fff; background: rgba(204,51,68,0.18); }
+  .mic-dot { display: none; width: 8px; height: 8px; border-radius: 50%; background: var(--red); animation: micblink 1s ease infinite; }
+  .btn-mic.recording .mic-dot { display: inline-block; }
+  @keyframes micblink { 0%,100% { opacity: 1; } 50% { opacity: 0.2; } }
+  .mic-timer { font-family: 'Bebas Neue', sans-serif; font-size: 1.15rem; letter-spacing: 1.5px; color: var(--muted2); }
+  .mic-timer.warn { color: var(--gold); }
+  .mic-timer.over { color: #ff5a6a; }
+  .mic-timer-toggle { background: none; border: none; color: var(--muted); font-family: 'DM Sans', sans-serif; font-size: 0.68rem; text-decoration: underline; cursor: pointer; padding: 0; }
+  .mic-status { font-size: 0.78rem; color: var(--muted2); line-height: 1.5; margin-bottom: 12px; min-height: 0; }
+  .mic-status strong { font-family: 'Bebas Neue', sans-serif; font-size: 1.1rem; letter-spacing: 1px; margin-right: 6px; }
+  .mic-status.over strong { color: #ff5a6a; }
+  .mic-status.short strong { color: var(--gold); }
+  .mic-status.zone strong { color: #4caf50; }
   .saved-section-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
   .video-detail { display: none; margin: 4px 0 14px; padding: 14px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; }
   .video-detail.visible { display: block; }
@@ -1071,6 +1089,8 @@ updateSaveBar();
   // ── RENDER QUESTIONS ───────────────────────────────────────────────────────
   function renderQuestions(questions, stage, voiceLabel) {
 currentQuestions = questions;
+if (typeof stopMic === 'function') stopMic(true);
+Object.keys(spokenAnswers).forEach(k => delete spokenAnswers[k]);
     // Store immediately in sessionStorage for video page handoff
     const jd = document.getElementById('jd-input')?.value?.trim() || '';
     sessionStorage.setItem('fa_interview_questions', JSON.stringify(questions));
@@ -1102,7 +1122,13 @@ currentQuestions = questions;
         <div class="q-answer-wrap">
           <div class="answer-label">Your answer</div>
           <textarea class="answer-textarea" id="answer-${i}"
-            placeholder="Type your answer here, or speak it aloud and reflect on it — then type key points…"></textarea>
+            placeholder="Type your answer here — or click Answer out loud and say it. Your words will appear here to review and edit."></textarea>
+          <div class="mic-row">
+            <button class="btn-mic" id="mic-btn-${i}" onclick="toggleMic(${i})"><span class="mic-dot"></span><span id="mic-label-${i}">🎤 Answer out loud</span></button>
+            <span class="mic-timer" id="mic-timer-${i}"></span>
+            <button class="mic-timer-toggle" onclick="toggleMicTimerMode()">${micTimerMode === 'show' ? 'Timer: shown' : 'Timer: hidden'}</button>
+          </div>
+          <div class="mic-status" id="mic-status-${i}"></div>
           <button class="btn-get-feedback" id="fb-btn-${i}" onclick="getFeedback(${i})">
             <div class="fb-spinner"></div>
             Get coaching feedback
@@ -1149,7 +1175,7 @@ currentQuestions = questions;
       const resp = await fetch('/.netlify/functions/interview-prep', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'feedback', question, questionType, answer, jd, voice: lastVoice, resume: getResumeText() })
+        body: JSON.stringify({ action: 'feedback', question, questionType, answer, jd, voice: lastVoice, resume: getResumeText(), spoken: !!spokenAnswers[idx], durationSeconds: spokenAnswers[idx]?.durationSeconds || 0 })
       });
 
       if (!resp.ok) {
@@ -1337,6 +1363,141 @@ document.addEventListener('play', e => {
 if (e.target.tagName !== 'VIDEO') return;
 document.querySelectorAll('video').forEach(v => { if (v !== e.target && v.id !== 'live-video') v.pause(); });
 }, true);
+
+// ── ANSWER OUT LOUD (mic only, no video) ───────────────────────────────────
+// Records audio, sends it to the existing Whisper transcription (interview-video
+// function, action 'transcribe'), and drops the text into the answer box.
+// No audio is stored — only the transcript the client can edit.
+var spokenAnswers = {};
+let micRec = null, micStream = null, micChunks = [], micIdx = null, micSeconds = 0, micTimerInt = null, micDiscard = false;
+let micTimerMode = (() => { try { return localStorage.getItem('fa_timer_mode') === 'hide' ? 'hide' : 'show'; } catch (e) { return 'show'; } })();
+
+function micClock(sec) { return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`; }
+
+function toggleMicTimerMode() {
+micTimerMode = micTimerMode === 'show' ? 'hide' : 'show';
+try { localStorage.setItem('fa_timer_mode', micTimerMode); } catch (e) {}
+document.querySelectorAll('.mic-timer-toggle').forEach(b => { b.textContent = micTimerMode === 'show' ? 'Timer: shown' : 'Timer: hidden'; });
+if (micIdx !== null) updateMicTimer(micIdx);
+}
+
+function updateMicTimer(i) {
+const el = document.getElementById(`mic-timer-${i}`);
+if (!el) return;
+if (micTimerMode === 'hide' || !micRec || micRec.state !== 'recording') { el.textContent = ''; return; }
+el.textContent = micSeconds <= 120 ? `${micClock(micSeconds)} / 2:00` : `+${micClock(micSeconds - 120)} over`;
+el.classList.toggle('warn', micSeconds >= 90 && micSeconds < 120);
+el.classList.toggle('over', micSeconds >= 120);
+}
+
+function setMicStatus(i, html, cls = '') {
+const el = document.getElementById(`mic-status-${i}`);
+if (!el) return;
+el.className = `mic-status ${cls}`;
+el.innerHTML = html;
+}
+
+async function toggleMic(i) {
+if (micRec && micRec.state === 'recording') { const was = micIdx; stopMic(); if (was === i) return; }
+await startMic(i);
+}
+
+async function startMic(i) {
+if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === 'undefined') {
+setMicStatus(i, 'Your browser does not support recording here. Please type your answer instead.');
+return;
+}
+try {
+micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+} catch (e) {
+setMicStatus(i, 'Microphone access was blocked. Allow the microphone for this site in your browser, then try again.');
+return;
+}
+const mime = MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus'
+: MediaRecorder.isTypeSupported('audio/webm') ? 'audio/webm'
+: MediaRecorder.isTypeSupported('audio/mp4') ? 'audio/mp4' : '';
+micRec = mime ? new MediaRecorder(micStream, { mimeType: mime }) : new MediaRecorder(micStream);
+micChunks = []; micIdx = i; micSeconds = 0; micDiscard = false;
+micRec.ondataavailable = e => { if (e.data && e.data.size) micChunks.push(e.data); };
+micRec.onstop = () => onMicStop(i);
+micRec.start(250);
+const btn = document.getElementById(`mic-btn-${i}`);
+btn.classList.add('recording');
+document.getElementById(`mic-label-${i}`).textContent = 'Stop';
+setMicStatus(i, micTimerMode === 'hide' ? 'Recording… the timer is hidden — you will see your time when you stop.' : 'Recording… speak your answer, then click Stop.');
+updateMicTimer(i);
+micTimerInt = setInterval(() => {
+micSeconds++;
+updateMicTimer(i);
+if (micSeconds >= 180) stopMic(); // safety cap at 3:00
+}, 1000);
+}
+
+function stopMic(discard = false) {
+micDiscard = discard;
+clearInterval(micTimerInt);
+micTimerInt = null;
+if (micRec && micRec.state !== 'inactive') micRec.stop();
+if (micStream) micStream.getTracks().forEach(t => t.stop());
+micStream = null;
+}
+
+function micBlobToBase64(blob) {
+return new Promise((resolve, reject) => {
+const r = new FileReader();
+r.onloadend = () => resolve(String(r.result).split(',')[1] || '');
+r.onerror = reject;
+r.readAsDataURL(blob);
+});
+}
+
+async function onMicStop(i) {
+const secs = micSeconds;
+const type = (micRec && micRec.mimeType) || 'audio/webm';
+const blob = new Blob(micChunks, { type });
+micRec = null; micIdx = null;
+const btn = document.getElementById(`mic-btn-${i}`);
+const label = document.getElementById(`mic-label-${i}`);
+const timerEl = document.getElementById(`mic-timer-${i}`);
+if (timerEl) timerEl.textContent = '';
+if (!btn) return;
+btn.classList.remove('recording');
+label.textContent = '🎤 Answer out loud';
+if (micDiscard) { setMicStatus(i, ''); return; }
+if (secs < 2 || blob.size < 1000) { setMicStatus(i, 'We didn’t catch that — click Answer out loud and try again.'); return; }
+if (blob.size > 5 * 1024 * 1024) { setMicStatus(i, 'That recording is too long to transcribe. Try an answer under 2 minutes.'); return; }
+
+let lenHtml, cls;
+if (secs > 120) { lenHtml = `<strong>${micClock(secs)}</strong>About ${secs - 120 < 60 ? (secs - 120) + ' seconds' : micClock(secs - 120)} over two minutes.`; cls = 'over'; }
+else if (secs < 45) { lenHtml = `<strong>${micClock(secs)}</strong>On the short side — strong answers usually run 1 to 2 minutes.`; cls = 'short'; }
+else { lenHtml = `<strong>${micClock(secs)}</strong>Right in the zone — under two minutes.`; cls = 'zone'; }
+
+btn.disabled = true;
+setMicStatus(i, `${lenHtml} Turning your answer into text…`, cls);
+try {
+const audioBase64 = await micBlobToBase64(blob);
+const resp = await fetch('/.netlify/functions/interview-video', {
+method: 'POST',
+headers: { 'Content-Type': 'application/json' },
+body: JSON.stringify({ action: 'transcribe', audioBase64, mimeType: type })
+});
+if (!resp.ok) {
+const err = await resp.json().catch(() => ({}));
+throw new Error(err.error || `Server error ${resp.status}`);
+}
+const { transcript } = await resp.json();
+if (!transcript || !transcript.trim()) throw new Error('No speech detected');
+const ta = document.getElementById(`answer-${i}`);
+ta.value = ta.value.trim() ? `${ta.value.trim()}\n\n${transcript.trim()}` : transcript.trim();
+ta.dispatchEvent(new Event('input', { bubbles: true }));
+spokenAnswers[i] = { durationSeconds: secs };
+setMicStatus(i, `${lenHtml} Review the text above, fix anything that came through wrong, then click Get coaching feedback.`, cls);
+} catch (e) {
+setMicStatus(i, `${lenHtml} Couldn’t turn that into text (${escHtml(e.message)}). Please try again or type your answer.`, cls);
+} finally {
+btn.disabled = false;
+}
+}
 
 function toggleSavedSessions() {
 const panel = document.getElementById('saved-panel');
