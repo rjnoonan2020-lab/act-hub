@@ -54,7 +54,7 @@ exports.handler = async (event) => {
       }
 
       const questionType = body.questionType || '';
-      const spoken = body.spoken ? { durationSeconds: Number(body.durationSeconds) || 0 } : null;
+      const spoken = body.spoken ? { durationSeconds: Number(body.durationSeconds) || 0, fillers: String(body.fillers || '').slice(0, 200) } : null;
       const feedback = await getFeedback(apiKey, { question, answer: answer.trim(), jd: jd || '', questionType, voice: voice || '', stage: body.stage || '', resume: (body.resume || '').trim(), spoken, previous: Array.isArray(body.previous) ? body.previous : [] });
       return { statusCode: 200, headers, body: JSON.stringify({ feedback }) };
     }
@@ -377,7 +377,7 @@ function buildCoachingPrompt(opts) {
   let how = '';
   if (spoken) {
     const len = spoken.durationSeconds ? ` It ran about ${Math.floor(spoken.durationSeconds / 60)}:${String(spoken.durationSeconds % 60).padStart(2, '0')} (target: under 2:00).` : '';
-    how = `HOW IT WAS GIVEN: The candidate SPOKE this answer out loud${opts.video ? ' on camera' : ''} and it was transcribed.${len} Ignore small transcription errors.`;
+    how = `HOW IT WAS GIVEN: The candidate SPOKE this answer out loud${opts.video ? ' on camera' : ''} and it was transcribed.${len} Ignore small transcription errors.${spoken.fillers ? ` Filler words counted in this answer: ${spoken.fillers}.` : ''}`;
   }
   if (framing && typeof framing.pctInFrame === 'number') {
     const problem = framing.pctInFrame < 85 || framing.exits >= 2;

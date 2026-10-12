@@ -53,6 +53,8 @@ async function transcribeAudio(apiKey, base64Audio, mimeType) {
   const preamble = Buffer.from(
     `--${boundary}\r\nContent-Disposition: form-data; name="model"\r\n\r\nwhisper-1\r\n` +
     `--${boundary}\r\nContent-Disposition: form-data; name="language"\r\n\r\nen\r\n` +
+    // Priming prompt so Whisper keeps filler words (um, uh, like) instead of cleaning them up
+    `--${boundary}\r\nContent-Disposition: form-data; name="prompt"\r\n\r\nUmm, so, uh, let me think. Like, I mean, you know, it was, um, kind of a big project. Uh, basically...\r\n` +
     `--${boundary}\r\nContent-Disposition: form-data; name="file"; filename="${filename}"\r\nContent-Type: ${mimeType}\r\n\r\n`
   );
   const ending = Buffer.from(`\r\n--${boundary}--\r\n`);
@@ -141,7 +143,7 @@ function buildCoachingPrompt(opts) {
   let how = '';
   if (spoken) {
     const len = spoken.durationSeconds ? ` It ran about ${Math.floor(spoken.durationSeconds / 60)}:${String(spoken.durationSeconds % 60).padStart(2, '0')} (target: under 2:00).` : '';
-    how = `HOW IT WAS GIVEN: The candidate SPOKE this answer out loud${opts.video ? ' on camera' : ''} and it was transcribed.${len} Ignore small transcription errors.`;
+    how = `HOW IT WAS GIVEN: The candidate SPOKE this answer out loud${opts.video ? ' on camera' : ''} and it was transcribed.${len} Ignore small transcription errors.${spoken.fillers ? ` Filler words counted in this answer: ${spoken.fillers}.` : ''}`;
   }
   if (framing && typeof framing.pctInFrame === 'number') {
     const problem = framing.pctInFrame < 85 || framing.exits >= 2;
