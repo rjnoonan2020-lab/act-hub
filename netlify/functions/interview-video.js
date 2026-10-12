@@ -87,7 +87,17 @@ async function transcribeAudio(apiKey, base64Audio, mimeType) {
   });
 }
 
-async function getCoachingFeedback(apiKey, question, transcript, jobDescription, questionType) {
+async function getCoachingFeedback(apiKey, question, transcript, jobDescription, questionType, framing = null) {
+
+  // Camera framing measured by face tracking during the recording
+  let framingNote = '';
+  if (framing && typeof framing.pctInFrame === 'number') {
+    const problem = framing.pctInFrame < 85 || framing.exits >= 2;
+    framingNote = `\n\nCAMERA FRAMING (measured by face tracking while they answered): their face was inside the target frame ${framing.pctInFrame}% of the time, they moved out of frame ${framing.exits} time(s), and the longest stretch out of frame was about ${framing.longestOutSeconds} second(s). ` +
+      (problem
+        ? 'This IS a problem: in the delivery-related part of your feedback (DELIVERY if that section exists, otherwise WHAT TO STRENGTHEN), say plainly that they moved out of the camera frame, roughly how much, and that interviewers notice it — stay centered with the face inside the oval.'
+        : 'Framing was fine — do not mention it.');
+  }
   if (!transcript || transcript.trim().length < 10) {
     return 'No speech detected. Please try again and make sure your microphone is working.';
   }
@@ -125,7 +135,7 @@ async function getCoachingFeedback(apiKey, question, transcript, jobDescription,
 
 EXCLUSION QUESTION: ${question}
 
-CANDIDATE'S SPOKEN ANSWER (transcribed): ${transcript}
+CANDIDATE'S SPOKEN ANSWER (transcribed): ${transcript}${framingNote}
 
 COACHING FRAMEWORK:
 - Goal is to deflect, reframe, or redirect gracefully — NOT answer directly
@@ -153,7 +163,7 @@ TRY ANSWERING IT THIS WAY
   } else if (isTellMe) {
     prompt = `You are a skilled career coach reviewing a candidate's "Tell Me About Yourself" answer.
 
-CANDIDATE'S SPOKEN ANSWER (transcribed): ${transcript}
+CANDIDATE'S SPOKEN ANSWER (transcribed): ${transcript}${framingNote}
 
 ${jobDescription ? `JOB CONTEXT:\n${jobDescription.slice(0, 500)}` : ''}
 
@@ -181,7 +191,7 @@ TRY ANSWERING IT THIS WAY
 
 INTERVIEW QUESTION: ${question}
 
-CANDIDATE'S SPOKEN ANSWER (transcribed): ${transcript}
+CANDIDATE'S SPOKEN ANSWER (transcribed): ${transcript}${framingNote}
 
 ${jobDescription ? `JOB CONTEXT:\n${jobDescription.slice(0, 500)}` : ''}
 
@@ -213,7 +223,7 @@ TRY ANSWERING IT THIS WAY
 
 INTERVIEW QUESTION: ${question}
 
-CANDIDATE'S SPOKEN ANSWER (transcribed): ${transcript}
+CANDIDATE'S SPOKEN ANSWER (transcribed): ${transcript}${framingNote}
 
 ${jobDescription ? `JOB CONTEXT:\n${jobDescription.slice(0, 500)}` : ''}
 
@@ -266,7 +276,7 @@ exports.handler = async (event) => {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Invalid JSON body' }) };
   }
 
-  const { action, audioBase64, mimeType, question, jobDescription, questionType } = body;
+  const { action, audioBase64, mimeType, question, jobDescription, questionType, framing } = body;
 
   if (action !== 'feedback') {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unknown action' }) };
@@ -278,7 +288,7 @@ exports.handler = async (event) => {
 
   try {
     const transcript = await transcribeAudio(openaiKey, audioBase64, mimeType || 'audio/webm');
-    const feedback = await getCoachingFeedback(anthropicKey, question, transcript, jobDescription || '', questionType || '');
+    const feedback = await getCoachingFeedback(anthropicKey, question, transcript, jobDescription || '', questionType || '', framing || null);
     return { statusCode: 200, headers, body: JSON.stringify({ transcript, feedback }) };
   } catch (err) {
     console.error('interview-video error:', err);
