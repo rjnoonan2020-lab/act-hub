@@ -645,8 +645,16 @@
   // ── INTERACTIONS ──────────────────────────────────────────────────────────
   function toggleCard(id) {
     const card = document.querySelector(`.session-card[data-id="${id}"]`);
+    // Closing a session stops its videos
+    if (card.classList.contains('open')) card.querySelectorAll('video').forEach(v => v.pause());
     card.classList.toggle('open');
   }
+
+  // Only one recorded answer plays at a time
+  document.addEventListener('play', e => {
+    if (e.target.tagName !== 'VIDEO') return;
+    document.querySelectorAll('video').forEach(v => { if (v !== e.target) v.pause(); });
+  }, true);
 
   function toggleJD(id, fullText) {
     const el = document.getElementById(`jd-${id}`);

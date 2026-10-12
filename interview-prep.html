@@ -1298,7 +1298,9 @@ return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
 async function toggleVideoSession(id, btn) {
 const box = document.getElementById(`vd-${id}`);
 if (!box) return;
-if (box.classList.contains('visible')) { box.classList.remove('visible'); btn.textContent = 'Open'; return; }
+if (box.classList.contains('visible')) { box.querySelectorAll('video').forEach(v => v.pause()); box.classList.remove('visible'); btn.textContent = 'Open'; return; }
+// Opening a session stops anything still playing elsewhere
+document.querySelectorAll('#video-list video').forEach(v => v.pause());
 const s = videoSessions.find(x => x.id === id);
 if (!s) return;
 const recs = Array.isArray(s.recordings) ? s.recordings : [];
@@ -1330,7 +1332,15 @@ if (v && data?.signedUrl) { v.src = data.signedUrl; v.style.display = 'block'; }
 }
 }
 
+// Only one practice video plays at a time
+document.addEventListener('play', e => {
+if (e.target.tagName !== 'VIDEO') return;
+document.querySelectorAll('video').forEach(v => { if (v !== e.target && v.id !== 'live-video') v.pause(); });
+}, true);
+
 function toggleSavedSessions() {
+const panel = document.getElementById('saved-panel');
+if (panel.classList.contains('visible')) panel.querySelectorAll('video').forEach(v => v.pause());
 document.getElementById('saved-panel').classList.toggle('visible');
 }
 
