@@ -380,8 +380,8 @@ HOW YOU HANDLED IT
 THE RISK
 <1–2 sentences>
 
-TRY THIS
-<1–2 sentences>`;
+TRY ANSWERING IT THIS WAY
+<an example of what to say, in quotation marks: 1–2 sentences in the candidate's own voice, built from what they actually said>`;
 
   } else if (isTellMe) {
     prompt = `You are a skilled career coach reviewing a candidate's "Tell Me About Yourself" answer — their 60-second professional pitch.
@@ -409,8 +409,8 @@ STRUCTURE
 WHAT TO STRENGTHEN
 <1–2 sentences>
 
-TRY THIS
-<1–2 sentences>`;
+TRY ANSWERING IT THIS WAY
+<an example of what to say, in quotation marks: 1–2 sentences in the candidate's own voice, built from what they actually said>`;
 
   } else {
     const isSeniorBehavioral = (
@@ -451,8 +451,8 @@ WHAT'S WORKING
 WHAT TO STRENGTHEN
 <1–2 sentences>
 
-TRY THIS
-<1–2 sentences>`;
+TRY ANSWERING IT THIS WAY
+<an example of what to say, in quotation marks: 1–2 sentences in the candidate's own voice, built from what they actually said>`;
     } else {
       prompt = `You are a skilled career coach providing targeted interview coaching.
 
@@ -465,7 +465,7 @@ ${jd ? `JOB CONTEXT:\n${jd.slice(0, 500)}` : ''}
 
 ${resumeNote}
 
-WHAT'S WORKING should be specific, not generic. WHAT TO STRENGTHEN is the single most important fix. TRY THIS is one concrete suggestion or phrase they could use instead. Be direct and constructive.
+WHAT'S WORKING should be specific, not generic. WHAT TO STRENGTHEN is the single most important fix. TRY ANSWERING IT THIS WAY is always a short example of what they could actually say, in quotation marks — not general advice. Be direct and constructive.
 
 FORMAT YOUR RESPONSE EXACTLY LIKE THIS — 3 short sections, each label in capitals on its own line, followed by 1–2 sentences, with a blank line between sections. No bullet points, no markdown, no bold, no intro or sign-off. Keep the whole response under 130 words.
 
@@ -475,8 +475,8 @@ WHAT'S WORKING
 WHAT TO STRENGTHEN
 <1–2 sentences>
 
-TRY THIS
-<1–2 sentences>`;
+TRY ANSWERING IT THIS WAY
+<an example of what to say, in quotation marks: 1–2 sentences in the candidate's own voice, built from what they actually said>`;
     }
   }
 

@@ -147,8 +147,8 @@ HOW YOU HANDLED IT
 THE RISK
 <1–2 sentences>
 
-TRY THIS
-<1–2 sentences>`;
+TRY ANSWERING IT THIS WAY
+<an example of what to say, in quotation marks: 1–2 sentences in the candidate's own voice, built from what they actually said>`;
 
   } else if (isTellMe) {
     prompt = `You are a skilled career coach reviewing a candidate's "Tell Me About Yourself" answer.
@@ -173,8 +173,8 @@ STRUCTURE
 WHAT TO STRENGTHEN
 <1–2 sentences>
 
-TRY THIS
-<1–2 sentences>`;
+TRY ANSWERING IT THIS WAY
+<an example of what to say, in quotation marks: 1–2 sentences in the candidate's own voice, built from what they actually said>`;
 
   } else if (isSeniorBehavioral) {
     prompt = `You are a skilled career coach providing video interview coaching to a senior executive (11+ years experience).
@@ -205,8 +205,8 @@ WHAT TO STRENGTHEN
 DELIVERY
 <1–2 sentences>
 
-TRY THIS
-<1–2 sentences>`;
+TRY ANSWERING IT THIS WAY
+<an example of what to say, in quotation marks: 1–2 sentences in the candidate's own voice, built from what they actually said>`;
 
   } else {
     prompt = `You are a skilled career coach reviewing a recorded interview answer.
@@ -217,7 +217,7 @@ CANDIDATE'S SPOKEN ANSWER (transcribed): ${transcript}
 
 ${jobDescription ? `JOB CONTEXT:\n${jobDescription.slice(0, 500)}` : ''}
 
-WHAT'S WORKING is the single strongest thing about the answer. WHAT TO STRENGTHEN covers content — did they answer the question with a clear situation, action, and result — and the most important fix. DELIVERY covers rambling, filler phrases, or trailing off. TRY THIS is one specific phrase or reframe. Be direct, warm, and specific.
+WHAT'S WORKING is the single strongest thing about the answer. WHAT TO STRENGTHEN covers content — did they answer the question with a clear situation, action, and result — and the most important fix. DELIVERY covers rambling, filler phrases, or trailing off. TRY ANSWERING IT THIS WAY is always a short example of what they could actually say, in quotation marks — not general advice. Be direct, warm, and specific.
 
 FORMAT YOUR RESPONSE EXACTLY LIKE THIS — 4 short sections, each label in capitals on its own line, followed by 1–2 sentences, with a blank line between sections. No bullet points, no markdown, no bold, no intro or sign-off. Keep the whole response under 150 words.
 
@@ -230,8 +230,8 @@ WHAT TO STRENGTHEN
 DELIVERY
 <1–2 sentences>
 
-TRY THIS
-<1–2 sentences>`;
+TRY ANSWERING IT THIS WAY
+<an example of what to say, in quotation marks: 1–2 sentences in the candidate's own voice, built from what they actually said>`;
   }
 
   return await callClaude(apiKey, [{ role: 'user', content: prompt }], 500);
