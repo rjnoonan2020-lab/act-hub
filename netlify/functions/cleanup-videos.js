@@ -5,8 +5,9 @@
 // "videoRemoved" so pages can say so.
 //
 // Schedule is set in netlify.toml. Requires the Netlify environment variable
-// SUPABASE_SERVICE_ROLE_KEY (Supabase → Project Settings → API keys →
-// service_role). Without it the job logs a message and does nothing.
+// SUPABASE_SERVICE_ROLE_KEY (Supabase → Project Settings → API Keys → a
+// Secret key "sb_secret_…", or the legacy service_role key). Without it the
+// job logs a message and does nothing.
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://fdymihjzdvqbrxnymsaj.supabase.co';
 const BUCKET = 'interview-recordings';
@@ -18,7 +19,11 @@ exports.handler = async () => {
     console.log('cleanup-videos: SUPABASE_SERVICE_ROLE_KEY is not set — skipping.');
     return { statusCode: 200, body: 'skipped: no service key' };
   }
-  const headers = { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
+  // New Supabase secret keys (sb_secret_…) go in the apikey header only;
+  // legacy service_role keys (JWTs) also go in Authorization.
+  const headers = key.startsWith('sb_')
+    ? { apikey: key, 'Content-Type': 'application/json' }
+    : { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' };
   const cutoff = new Date(Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
   const res = await fetch(
