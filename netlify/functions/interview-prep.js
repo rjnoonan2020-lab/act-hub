@@ -54,7 +54,8 @@ exports.handler = async (event) => {
       }
 
       const questionType = body.questionType || '';
-      const feedback = await getFeedback(apiKey, question, answer.trim(), jd || '', questionType, voice || '', (body.resume || '').trim());
+      const spoken = body.spoken ? { durationSeconds: Number(body.durationSeconds) || 0 } : null;
+      const feedback = await getFeedback(apiKey, question, answer.trim(), jd || '', questionType, voice || '', (body.resume || '').trim(), spoken);
       return { statusCode: 200, headers, body: JSON.stringify({ feedback }) };
     }
 
@@ -324,7 +325,12 @@ Now return ONLY a JSON array of exactly ${missing} additional question object(s)
 }
 // ── FEEDBACK ──────────────────────────────────────────────────────────────────
 
-async function getFeedback(apiKey, question, answer, jd, questionType, voice, resume = '') {
+async function getFeedback(apiKey, question, answer, jd, questionType, voice, resume = '', spoken = null) {
+
+  // Answer was spoken out loud and transcribed (mic button on the practice page)
+  const spokenNote = spoken
+    ? `\n\nNOTE: The candidate SPOKE this answer out loud and it was transcribed${spoken.durationSeconds ? ` (about ${Math.floor(spoken.durationSeconds / 60)}:${String(spoken.durationSeconds % 60).padStart(2, '0')} long; aim is under 2:00)` : ''}. Ignore small transcription errors. If they rambled, used a lot of filler words (um, like, you know), trailed off, or ran well past two minutes, mention it briefly in WHAT TO STRENGTHEN (or the most relevant section).`
+    : '';
 
   const resumeNote = resume ? `\n\nCANDIDATE RESUME (for context — if they left out relevant experience from it, point that out in one of your sections):\n${resume.slice(0, 2500)}` : '';
 
@@ -358,7 +364,7 @@ async function getFeedback(apiKey, question, answer, jd, questionType, voice, re
 
 EXCLUSION QUESTION: ${question}
 
-CANDIDATE'S ANSWER: ${answer}
+CANDIDATE'S ANSWER: ${answer}${spokenNote}
 
 COACHING FRAMEWORK:
 - The goal is to deflect, reframe, or redirect gracefully — NOT answer directly
@@ -386,7 +392,7 @@ TRY ANSWERING IT THIS WAY
   } else if (isTellMe) {
     prompt = `You are a skilled career coach reviewing a candidate's "Tell Me About Yourself" answer — their 60-second professional pitch.
 
-CANDIDATE'S ANSWER: ${answer}
+CANDIDATE'S ANSWER: ${answer}${spokenNote}
 
 ${jd ? `JOB CONTEXT:
 ${jd.slice(0, 500)}` : ''}
@@ -428,7 +434,7 @@ TRY ANSWERING IT THIS WAY
 
 INTERVIEW QUESTION: ${question}
 
-CANDIDATE'S ANSWER: ${answer}
+CANDIDATE'S ANSWER: ${answer}${spokenNote}
 
 ${jd ? `JOB CONTEXT:\n${jd.slice(0, 500)}` : ''}
 
@@ -458,7 +464,7 @@ TRY ANSWERING IT THIS WAY
 
 INTERVIEW QUESTION: ${question}
 
-CANDIDATE'S ANSWER: ${answer}
+CANDIDATE'S ANSWER: ${answer}${spokenNote}
 ${voiceNote}
 
 ${jd ? `JOB CONTEXT:\n${jd.slice(0, 500)}` : ''}

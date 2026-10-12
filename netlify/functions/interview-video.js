@@ -278,6 +278,18 @@ exports.handler = async (event) => {
 
   const { action, audioBase64, mimeType, question, jobDescription, questionType, framing } = body;
 
+  // Mic-only answers on the typed practice page: transcribe and return the text
+  if (action === 'transcribe') {
+    if (!audioBase64) return { statusCode: 400, headers, body: JSON.stringify({ error: 'Missing audio' }) };
+    try {
+      const transcript = await transcribeAudio(openaiKey, audioBase64, mimeType || 'audio/webm');
+      return { statusCode: 200, headers, body: JSON.stringify({ transcript }) };
+    } catch (err) {
+      console.error('transcribe error:', err);
+      return { statusCode: 500, headers, body: JSON.stringify({ error: err.message || 'Transcription failed' }) };
+    }
+  }
+
   if (action !== 'feedback') {
     return { statusCode: 400, headers, body: JSON.stringify({ error: 'Unknown action' }) };
   }
