@@ -611,6 +611,19 @@ color-scheme: dark;
 }
 .saved-tools input { flex: 1; min-width: 180px; }
 .saved-empty { font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
+  .saved-section-label { font-size: 0.6rem; font-weight: 700; letter-spacing: 2.5px; text-transform: uppercase; color: var(--gold); margin-bottom: 10px; }
+  .video-detail { display: none; margin: 4px 0 14px; padding: 14px 16px; background: var(--surface2); border: 1px solid var(--border); border-radius: 3px; }
+  .video-detail.visible { display: block; }
+  .vrec { padding: 12px 0; border-top: 1px solid var(--border); }
+  .vrec:first-child { border-top: none; padding-top: 0; }
+  .vrec-type { font-size: 0.6rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--red); margin-bottom: 4px; }
+  .vrec-q { font-family: 'DM Serif Display', serif; font-size: 0.98rem; color: var(--white); line-height: 1.4; margin-bottom: 6px; }
+  .vrec-meta { font-size: 0.72rem; color: var(--muted); margin-bottom: 8px; }
+  .vrec video { width: 100%; max-height: 300px; background: #000; border-radius: 3px; margin-bottom: 8px; }
+  .vrec-label { font-size: 0.58rem; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--muted); margin: 8px 0 4px; }
+  .vrec-transcript { font-size: 0.8rem; color: var(--muted2); font-style: italic; line-height: 1.6; }
+  .vrec-feedback { font-size: 0.82rem; color: var(--muted2); line-height: 1.7; }
+  .coach-notes { margin-top: 12px; padding: 12px 14px; border: 1px solid rgba(201,162,39,0.3); background: rgba(201,162,39,0.06); border-radius: 3px; font-size: 0.84rem; color: var(--white); line-height: 1.65; white-space: pre-wrap; }
 .saved-item {
 display: flex;
 align-items: center;
@@ -740,7 +753,7 @@ padding: 24px;
   <!-- INPUT FORM -->
   <div id="input-section">
 
-    <div class="saved-bar">
+    <div class="saved-bar" id="saved-bar">
 <button class="btn-saved-toggle" id="btn-saved-toggle" onclick="toggleSavedSessions()">My saved sessions <span id="saved-count"></span></button>
 </div>
 <div class="saved-panel" id="saved-panel">
@@ -752,7 +765,10 @@ padding: 24px;
 <option value="company">Company A–Z</option>
 </select>
 </div>
+<div class="saved-section-label">Written practice</div>
 <div id="saved-list"><div class="saved-empty">Loading…</div></div>
+<div class="saved-section-label" style="margin-top:22px;">Video practice</div>
+<div id="video-list"><div class="saved-empty">Loading…</div></div>
 </div>
 
 <div class="step">
@@ -909,6 +925,11 @@ padding: 24px;
     if (emailEl) emailEl.textContent = email;
 currentUserId = session.user.id;
 loadSavedSessions();
+loadVideoSessions();
+if (location.hash === '#saved') {
+  document.getElementById('saved-panel').classList.add('visible');
+  setTimeout(() => document.getElementById('saved-bar')?.scrollIntoView({ behavior: 'smooth' }), 300);
+}
   }
 
   async function handleSignOut() {
@@ -1155,6 +1176,7 @@ if (currentSessionId) scheduleAutoSave(); else setSaveStatus('Not saved yet');
   // ── CAMERA HANDOFF ────────────────────────────────────────────────────────
   function goToVideoMode() {
     // Questions already stored in sessionStorage by renderQuestions()
+    try { sessionStorage.setItem('fa_interview_label', JSON.stringify(getLabelInputs())); } catch (e) {}
     window.location.href = '/interview-video.html';
   }
 
@@ -1212,8 +1234,100 @@ return;
 }
 savedSessions = data || [];
 const countEl = document.getElementById('saved-count');
-if (countEl) countEl.textContent = savedSessions.length ? `(${savedSessions.length})` : '';
+updateSavedCount();
 renderSavedList();
+}
+
+// ── VIDEO PRACTICE SESSIONS (from the camera page, table interview_sessions) ──
+let videoSessions = [];
+
+function updateSavedCount() {
+const countEl = document.getElementById('saved-count');
+const n = savedSessions.length + videoSessions.length;
+if (countEl) countEl.textContent = n ? `(${n})` : '';
+}
+
+async function loadVideoSessions() {
+const { data, error } = await sb
+.from('interview_sessions')
+.select('id, created_at, completed_at, company_name, job_title, recordings, rob_notes')
+.order('created_at', { ascending: false });
+const el = document.getElementById('video-list');
+if (error) {
+console.error('Load video sessions error:', error);
+if (el) el.innerHTML = '<div class="saved-empty">Could not load your video sessions right now. Please refresh and try again.</div>';
+return;
+}
+videoSessions = data || [];
+updateSavedCount();
+renderVideoList();
+}
+
+function renderVideoList() {
+const el = document.getElementById('video-list');
+if (!el) return;
+if (!videoSessions.length) {
+el.innerHTML = '<div class="saved-empty">No video sessions yet. Click <strong>Practice on camera</strong> after generating questions, record your answers, then click <strong>Save session</strong>.</div>';
+return;
+}
+const q = (document.getElementById('saved-search')?.value || '').trim().toLowerCase();
+const rows = videoSessions.filter(s => !q || (s.company_name || '').toLowerCase().includes(q) || (s.job_title || '').toLowerCase().includes(q));
+if (!rows.length) { el.innerHTML = '<div class="saved-empty">No video sessions match that search.</div>'; return; }
+el.innerHTML = rows.map(s => {
+const recs = Array.isArray(s.recordings) ? s.recordings : [];
+const name = s.company_name ? sessionName(s) : 'Video practice';
+const meta = [`Recorded ${fmtDate(s.completed_at || s.created_at)}`, `${recs.length} answer${recs.length === 1 ? '' : 's'}`, s.rob_notes ? 'Coach notes added' : 'Awaiting coach notes'].join(' · ');
+return `
+<div class="saved-item">
+<div>
+<div class="saved-name">${escHtml(name)}</div>
+<div class="saved-meta">${escHtml(meta)}</div>
+</div>
+<div class="saved-actions">
+<button class="btn-mini primary" onclick="toggleVideoSession('${s.id}', this)">Open</button>
+</div>
+</div>
+<div class="video-detail" id="vd-${s.id}"></div>`;
+}).join('');
+}
+
+function fmtLen(sec) {
+return `${Math.floor(sec / 60)}:${String(sec % 60).padStart(2, '0')}`;
+}
+
+async function toggleVideoSession(id, btn) {
+const box = document.getElementById(`vd-${id}`);
+if (!box) return;
+if (box.classList.contains('visible')) { box.classList.remove('visible'); btn.textContent = 'Open'; return; }
+const s = videoSessions.find(x => x.id === id);
+if (!s) return;
+const recs = Array.isArray(s.recordings) ? s.recordings : [];
+box.innerHTML = recs.map((r, i) => {
+const bits = [];
+if (r.durationSeconds) bits.push(`Answer length ${fmtLen(r.durationSeconds)}${r.durationSeconds > 120 ? ' (over 2:00)' : ''}`);
+if (r.framing && typeof r.framing.pctInFrame === 'number') bits.push(`In frame ${r.framing.pctInFrame}%${r.framing.exits ? ` · left frame ${r.framing.exits}×` : ''}`);
+return `
+<div class="vrec">
+<div class="vrec-type">${escHtml(r.questionType || 'Question')}</div>
+<div class="vrec-q">${escHtml(r.questionText || '')}</div>
+${bits.length ? `<div class="vrec-meta">${escHtml(bits.join(' · '))}</div>` : ''}
+<video id="vv-${id}-${i}" controls preload="metadata" playsinline style="display:none;"></video>
+${r.transcript ? `<div class="vrec-label">What you said</div><div class="vrec-transcript">${escHtml(r.transcript)}</div>` : ''}
+${r.feedback ? `<div class="vrec-label">Coaching notes</div><div class="vrec-feedback">${feedbackHtml(r.feedback)}</div>` : ''}
+</div>`;
+}).join('') + (s.rob_notes ? `<div class="vrec-label" style="color:var(--gold);">Notes from your coach</div><div class="coach-notes">${escHtml(s.rob_notes)}</div>` : '');
+box.classList.add('visible');
+btn.textContent = 'Close';
+// Load each video with a short-lived private link
+for (let i = 0; i < recs.length; i++) {
+const r = recs[i];
+let path = r.videoPath;
+if (!path && r.videoUrl && r.videoUrl.includes('/interview-recordings/')) path = decodeURIComponent(r.videoUrl.split('/interview-recordings/')[1]);
+if (!path) continue;
+const { data } = await sb.storage.from('interview-recordings').createSignedUrl(path, 3600);
+const v = document.getElementById(`vv-${id}-${i}`);
+if (v && data?.signedUrl) { v.src = data.signedUrl; v.style.display = 'block'; }
+}
 }
 
 function toggleSavedSessions() {
@@ -1227,6 +1341,7 @@ if (!savedSessions.length) {
 listEl.innerHTML = '<div class="saved-empty">No saved sessions yet. Fill in the company under Role details, practice, then click <strong>Save session</strong> to keep your questions, answers, and coaching notes here.</div>';
 return;
 }
+renderVideoList();
 const q = (document.getElementById('saved-search')?.value || '').trim().toLowerCase();
 const sort = document.getElementById('saved-sort')?.value || 'practiced';
 let rows = savedSessions.filter(s =>

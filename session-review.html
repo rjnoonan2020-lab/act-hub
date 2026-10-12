@@ -587,6 +587,7 @@
               <div class="rec-q-type">${escHtml(rec.questionType || 'Question')}</div>
               <div class="rec-q-text">${escHtml(rec.questionText || '')}</div>
               ${rec.durationSeconds ? `<div class="rec-label">Answer length: ${Math.floor(rec.durationSeconds / 60)}:${String(rec.durationSeconds % 60).padStart(2, '0')}${rec.durationSeconds > 120 ? ' (over 2:00)' : ''}</div>` : ''}
+              ${rec.framing && typeof rec.framing.pctInFrame === 'number' ? `<div class="rec-label">Framing: in frame ${rec.framing.pctInFrame}%${rec.framing.exits ? ` · left frame ${rec.framing.exits}×` : ''}</div>` : ''}
               ${rec.transcript ? `
                 <div class="rec-label">What they said</div>
                 <div class="rec-transcript">${escHtml(rec.transcript)}</div>

@@ -710,9 +710,27 @@
     text-transform: uppercase;
     color: var(--muted2);
   }
+  .frame-warn {
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(204,51,68,0.92);
+    color: #fff;
+    font-size: 0.62rem;
+    font-weight: 700;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    padding: 5px 12px;
+    border-radius: 2px;
+    z-index: 4;
+    display: none;
+    white-space: nowrap;
+  }
+  .frame-warn.visible { display: block; }
   .scorecard-grid {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(4, 1fr);
     gap: 16px;
   }
   .score-item { text-align: center; }
@@ -743,7 +761,7 @@
 
   @media (max-width: 600px) {
     .live-meters { grid-template-columns: repeat(3, 1fr); gap: 6px; }
-    .scorecard-grid { grid-template-columns: repeat(3, 1fr); gap: 10px; }
+    .scorecard-grid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
     .meter-value, .score-grade { font-size: 1.1rem; }
   }
 </style>
@@ -760,6 +778,7 @@
   </a>
   <div style="display:flex;align-items:center;justify-content:center;gap:12px;">
     <a class="header-signout" href="/interview-prep.html" style="text-decoration:none;">← Prep</a>
+    <a class="header-signout" href="/interview-prep.html#saved" style="text-decoration:none;margin-left:8px;">My saved sessions</a>
     <button class="header-signout" onclick="handleSignOut()">Sign out</button>
   </div>
 </header>
@@ -799,7 +818,7 @@
 
     <!-- Mode toggle -->
     <div class="mode-toggle-wrap">
-      <span class="mode-label">Mode</span>
+      <span class="mode-label">Format</span>
       <div class="toggle-group">
         <button class="toggle-btn active" id="toggle-one" onclick="setMode('one')">One at a time</button>
         <button class="toggle-btn" id="toggle-full" onclick="setMode('full')">Full mock interview</button>
@@ -948,6 +967,7 @@
           REC
         </div>
         <div class="rec-timer" id="rec-timer">0:00</div>
+        <div class="frame-warn" id="frame-warn">Move back into frame</div>
         <div class="timer-bar" id="timer-bar"><div class="timer-bar-fill" id="timer-bar-fill"></div></div>
         <video id="live-video" autoplay muted playsinline style="width:100%;height:100%;object-fit:cover;display:block;"></video>
 
@@ -1084,6 +1104,12 @@
           <div class="score-grade" id="score-eye">—</div>
           <div class="score-note" id="note-eye">Available after feedback</div>
         </div>
+        <div class="score-item">
+          <div class="score-icon">🎯</div>
+          <div class="score-label">Framing</div>
+          <div class="score-grade" id="score-framing">—</div>
+          <div class="score-note" id="note-framing">Analyzing…</div>
+        </div>
       </div>
     </div>
 
@@ -1113,9 +1139,10 @@
       </svg>
     </div>
     <div class="complete-title">Session Complete</div>
-    <div class="complete-desc">Your practice session has been saved. Your coach will review it and add notes.</div>
+    <div class="complete-desc">Your practice session has been saved. Your coach will review it and add notes. You can come back to it anytime under <strong>My saved sessions</strong>.</div>
     <div style="display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;">
       <button class="btn-record" onclick="startOver()" style="justify-content: center;">Practice again</button>
+      <a class="btn-secondary" href="/interview-prep.html#saved" style="justify-content: center;">View my saved sessions</a>
       <a class="btn-secondary" href="/portal.html" style="justify-content: center;">Back to portal</a>
     </div>
   </div>
@@ -1392,6 +1419,7 @@
     timerSeconds = 0;
     startTimer();
     startAnalysis();
+    startFramingTracking();
 
     document.getElementById('rec-indicator').classList.add('visible');
     document.getElementById('position-guide').style.display = 'none';
@@ -1420,6 +1448,8 @@
     isRecording = false;
     stopTimer();
     stopAnalysis();
+    stopFramingTracking();
+    lastFraming = getFramingSummary();
     document.getElementById('rec-indicator').classList.remove('visible');
     document.getElementById('rec-timer').classList.remove('visible');
     document.getElementById('timer-bar').classList.remove('visible');
@@ -1652,7 +1682,8 @@ function renderFeedback(el, text) {
           mimeType: blobToSend.type,
           question: question.question,
           questionType: question.type || '',
-          jobDescription: sessionData.jobDescription.slice(0, 1000)
+          jobDescription: sessionData.jobDescription.slice(0, 1000),
+          framing: lastFraming
         })
       });
 
@@ -1684,7 +1715,8 @@ function renderFeedback(el, text) {
         document.getElementById('meter-eye').textContent = fillerResult.count === 0 ? 'NONE' : String(fillerResult.count);
       }
 
-      // Store in session
+      // Store in session (keep this answer's video so every answer is uploaded on save)
+      recordingBlobs.push(recordedBlob);
       sessionData.recordings.push({
         questionIdx: currentQIdx,
         questionText: question.question,
@@ -1692,6 +1724,7 @@ function renderFeedback(el, text) {
         transcript,
         feedback,
         durationSeconds: timerSeconds,
+        framing: lastFraming,
         recordedAt: new Date().toISOString()
       });
 
@@ -1718,21 +1751,28 @@ function renderFeedback(el, text) {
     setStatus('gold', 'Saving session…');
 
     try {
-      // Upload video to Supabase Storage if we have a recording
-      let videoUrl = null;
-      if (recordedBlob) {
-        const fileName = `${currentUser.id}/${Date.now()}-q${currentQIdx}.webm`;
-        const { data, error } = await sb.storage
-          .from('interview-recordings')
-          .upload(fileName, recordedBlob, { contentType: recordedBlob.type, upsert: false });
-
-        if (!error) {
-          const { data: urlData } = sb.storage
+      // Upload each answer's video to Supabase Storage
+      const uploaded = [];
+      for (let i = 0; i < sessionData.recordings.length; i++) {
+        const blob = recordingBlobs[i];
+        let videoUrl = null, videoPath = null;
+        if (blob) {
+          const fileName = `${currentUser.id}/${Date.now()}-q${sessionData.recordings[i].questionIdx}-${i}.webm`;
+          const { error } = await sb.storage
             .from('interview-recordings')
-            .getPublicUrl(fileName);
-          videoUrl = urlData?.publicUrl || null;
+            .upload(fileName, blob, { contentType: blob.type, upsert: false });
+          if (!error) {
+            videoPath = fileName;
+            const { data: urlData } = sb.storage.from('interview-recordings').getPublicUrl(fileName);
+            videoUrl = urlData?.publicUrl || null;
+          } else {
+            console.error('Video upload error:', error);
+          }
         }
+        uploaded.push({ ...sessionData.recordings[i], videoUrl, videoPath });
       }
+      let label = {};
+      try { label = JSON.parse(sessionStorage.getItem('fa_interview_label') || '{}'); } catch (e) {}
 
       // Save session record to Supabase
       const { error: dbError } = await sb.from('interview_sessions').insert({
@@ -1740,10 +1780,9 @@ function renderFeedback(el, text) {
         user_email: currentUser.email,
         job_description: sessionData.jobDescription,
         questions: sessionData.questions,
-        recordings: sessionData.recordings.map(r => ({
-          ...r,
-          videoUrl: videoUrl || null
-        })),
+        recordings: uploaded,
+        company_name: label.company_name || null,
+        job_title: label.job_title || null,
         completed_at: new Date().toISOString()
       });
 
@@ -1771,6 +1810,7 @@ function renderFeedback(el, text) {
 
   function startOver() {
     sessionData.recordings = [];
+    recordingBlobs = [];
     sessionSaved = false;
     currentQIdx = 0;
     document.getElementById('session-complete').classList.remove('visible');
@@ -1989,6 +2029,15 @@ function renderFeedback(el, text) {
     sv.className = `score-grade ${volume.css}`;
     document.getElementById('note-volume').textContent = volume.note;
 
+    // Framing (face tracking during the recording)
+    const fr = getFramingScore(lastFraming);
+    const sf = document.getElementById('score-framing');
+    if (sf) {
+      sf.textContent = fr.grade;
+      sf.className = `score-grade ${fr.css}`;
+      document.getElementById('note-framing').textContent = fr.note;
+    }
+
     // Filler words — populated after AI feedback returns transcript
     const se = document.getElementById('score-eye');
     se.textContent = '—';
@@ -2062,6 +2111,103 @@ function renderFeedback(el, text) {
     consecutiveBadFrames = 0;
   }
 
+  // Is a detected face inside the target oval? Shared by the pre-recording
+  // guide and the during-recording framing tracker.
+  // Margins are pulled in from the oval's literal edges so drifting toward
+  // the edge (any direction, or too close/far) counts as "out" early.
+  function faceInTarget(box, vw, vh) {
+    const cx = (box.x + box.width / 2) / vw;
+    const cy = (box.y + box.height / 2) / vh;
+    const faceHeightRatio = box.height / vh;
+    const centeredHorizontally = cx > 0.34 && cx < 0.66;
+    const centeredVertically = cy > 0.15 && cy < 0.75;
+    const reasonableSize = faceHeightRatio > 0.20 && faceHeightRatio < 0.80;
+    return centeredHorizontally && centeredVertically && reasonableSize;
+  }
+
+  // ── FRAMING TRACKER (during recording) ────────────────────────────────────
+  // Samples face position while the candidate answers, shows a live
+  // "Move back into frame" warning, and summarizes time in frame / exits so
+  // the scorecard and the AI coaching can call it out.
+  const FRAMING_INTERVAL_MS = 700;
+  let framingTimer = null;
+  let framingSamples = [];
+  let framingBusy = false;
+  let framingOutStreak = 0;
+  let framingExits = 0;
+  let framingWasIn = false;
+  let lastFraming = null;
+  let recordingBlobs = [];
+
+  function startFramingTracking() {
+    stopFramingTracking();
+    framingSamples = [];
+    framingOutStreak = 0;
+    framingExits = 0;
+    framingWasIn = false;
+    lastFraming = null;
+    loadFaceModel().then(ok => {
+      if (ok && isRecording) framingTimer = setInterval(sampleFraming, FRAMING_INTERVAL_MS);
+    });
+  }
+
+  function stopFramingTracking() {
+    if (framingTimer) clearInterval(framingTimer);
+    framingTimer = null;
+    const w = document.getElementById('frame-warn');
+    if (w) w.classList.remove('visible');
+  }
+
+  async function sampleFraming() {
+    if (framingBusy || !isRecording) return;
+    const video = document.getElementById('live-video');
+    if (!video || video.readyState < 2 || !faceModelReady) return;
+    framingBusy = true;
+    let inFrame = false;
+    try {
+      const d = await faceapi.detectSingleFace(
+        video,
+        new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.5 })
+      );
+      inFrame = !!d && faceInTarget(d.box, video.videoWidth, video.videoHeight);
+    } catch (e) {
+      framingBusy = false;
+      return;
+    }
+    framingBusy = false;
+    if (!isRecording) return;
+    framingSamples.push(inFrame);
+    if (inFrame) {
+      framingOutStreak = 0;
+      framingWasIn = true;
+    } else {
+      framingOutStreak++;
+      if (framingOutStreak === 2 && framingWasIn) framingExits++;
+    }
+    const w = document.getElementById('frame-warn');
+    if (w) w.classList.toggle('visible', framingOutStreak >= 2);
+  }
+
+  function getFramingSummary() {
+    if (framingSamples.length < 3) return null;
+    const inCount = framingSamples.filter(Boolean).length;
+    let longest = 0, run = 0;
+    framingSamples.forEach(s => { if (!s) { run++; longest = Math.max(longest, run); } else run = 0; });
+    return {
+      pctInFrame: Math.round((inCount / framingSamples.length) * 100),
+      exits: framingExits,
+      longestOutSeconds: Math.round((longest * FRAMING_INTERVAL_MS) / 1000)
+    };
+  }
+
+  function getFramingScore(f) {
+    if (!f) return { grade: 'N/A', note: 'Face tracking unavailable', css: 'ok' };
+    const left = f.exits ? ` · left frame ${f.exits}×` : '';
+    if (f.pctInFrame >= 90 && f.exits <= 1) return { grade: 'GOOD', note: `In frame ${f.pctInFrame}% of the time`, css: 'good' };
+    if (f.pctInFrame >= 70) return { grade: 'DRIFTING', note: `In frame ${f.pctInFrame}%${left}`, css: 'ok' };
+    return { grade: 'OFF FRAME', note: `In frame only ${f.pctInFrame}%${left}`, css: 'poor' };
+  }
+
   async function checkFacePosition() {
     if (positionCheckBusy) return; // avoid overlapping detections if one run is slow
     const video = document.getElementById('live-video');
@@ -2076,20 +2222,7 @@ function renderFeedback(el, text) {
       );
 
       if (detection) {
-        const vw = video.videoWidth, vh = video.videoHeight;
-        const box = detection.box;
-        const cx = (box.x + box.width / 2) / vw;
-        const cy = (box.y + box.height / 2) / vh;
-        const faceHeightRatio = box.height / vh;
-
-        // Tightened further per feedback — margins pulled in from the oval's
-        // literal edges so drifting toward the edge (in any direction, or too
-        // close/far) flags as "out" sooner rather than only at the extremes.
-        const centeredHorizontally = cx > 0.34 && cx < 0.66;
-        const centeredVertically = cy > 0.15 && cy < 0.75;
-        const reasonableSize = faceHeightRatio > 0.20 && faceHeightRatio < 0.80;
-
-        isGoodPosition = centeredHorizontally && centeredVertically && reasonableSize;
+        isGoodPosition = faceInTarget(detection.box, video.videoWidth, video.videoHeight);
       }
     } catch (e) {
       console.error('Face detection error:', e);
